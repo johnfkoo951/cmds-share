@@ -1,0 +1,247 @@
+.cmds-share-options-modal,
+.cmds-share-confirm-modal {
+	padding: 1em;
+}
+
+.cmds-share-provider-info {
+	color: var(--text-muted);
+	font-size: 0.9em;
+	margin-bottom: 1em;
+}
+
+.cmds-share-warning {
+	color: var(--text-error);
+	font-size: 0.9em;
+}
+
+.cmds-share-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 1.5em;
+}
+
+.cmds-share-suggestion {
+	padding: 4px 0;
+}
+
+.cmds-share-suggestion-title {
+	font-weight: 500;
+}
+
+.cmds-share-encrypted-icon {
+	margin-left: 4px;
+}
+
+.cmds-share-suggestion-meta {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.cmds-share-cms {
+	padding: 16px;
+}
+
+.cmds-share-cms-header {
+	margin-bottom: 16px;
+}
+
+.cmds-share-cms-title-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 8px;
+}
+
+.cmds-share-cms-title-row h2 {
+	margin: 0;
+}
+
+.cmds-share-cms-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.cmds-share-cms-provider-badge {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.cmds-share-cms-stats {
+	display: flex;
+	gap: 16px;
+	margin-bottom: 24px;
+	flex-wrap: wrap;
+}
+
+.cmds-share-cms-stat {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 12px 16px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+	min-width: 80px;
+}
+
+.cmds-share-cms-stat-icon {
+	font-size: 1.5em;
+	margin-bottom: 4px;
+}
+
+.cmds-share-cms-stat-value {
+	font-size: 1.5em;
+	font-weight: 600;
+}
+
+.cmds-share-cms-stat-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.cmds-share-cms-list {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.cmds-share-cms-empty {
+	text-align: center;
+	padding: 32px;
+	color: var(--text-muted);
+}
+
+.cmds-share-cms-empty-hint {
+	font-size: 0.9em;
+}
+
+.cmds-share-cms-item {
+	padding: 12px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.cmds-share-cms-item:hover {
+	border-color: var(--interactive-accent);
+}
+
+.cmds-share-cms-item-main {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	margin-bottom: 8px;
+}
+
+.cmds-share-cms-item-title-container {
+	display: flex;
+	align-items: center;
+}
+
+.cmds-share-cms-item-title {
+	font-weight: 500;
+	color: var(--text-normal);
+	text-decoration: none;
+}
+
+.cmds-share-cms-item-title:hover {
+	color: var(--interactive-accent);
+}
+
+.cmds-share-cms-encrypted-badge {
+	font-size: 0.9em;
+}
+
+.cmds-share-cms-status {
+	font-size: 0.75em;
+	padding: 2px 8px;
+	border-radius: 4px;
+	text-transform: uppercase;
+	font-weight: 500;
+}
+
+.cmds-share-cms-status-published {
+	background: var(--color-green);
+	color: var(--text-on-accent);
+}
+
+.cmds-share-cms-status-draft {
+	background: var(--color-yellow);
+	color: var(--text-on-accent);
+}
+
+.cmds-share-cms-status-archived {
+	background: var(--color-base-50);
+	color: var(--text-muted);
+}
+
+.cmds-share-cms-status-expired {
+	background: var(--color-red);
+	color: var(--text-on-accent);
+}
+
+.cmds-share-cms-item-meta {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	margin-bottom: 8px;
+}
+
+.cmds-share-cms-item-url {
+	margin-bottom: 8px;
+}
+
+.cmds-share-cms-item-url a {
+	font-size: 0.85em;
+	color: var(--text-accent);
+	text-decoration: none;
+	word-break: break-all;
+}
+
+.cmds-share-cms-item-url a:hover {
+	text-decoration: underline;
+}
+
+.cmds-share-cms-item-actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.cmds-share-cms-btn {
+	padding: 6px 12px;
+	border-radius: 4px;
+	border: none;
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	cursor: pointer;
+	font-size: 0.9em;
+}
+
+.cmds-share-cms-btn:hover {
+	background: var(--interactive-hover);
+}
+
+.cmds-share-cms-btn-small {
+	padding: 4px 8px;
+	font-size: 0.8em;
+}
+
+.cmds-share-cms-btn-danger {
+	color: var(--text-error);
+}
+
+.cmds-share-cms-btn-danger:hover {
+	background: var(--background-modifier-error);
+}
+
+.cmds-share-provider-settings {
+	margin-top: 8px;
+	padding: 12px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+}
+
+.cmds-share-provider-settings h4 {
+	margin-top: 0;
+	margin-bottom: 8px;
+}
