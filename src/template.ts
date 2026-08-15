@@ -172,28 +172,30 @@ body {
 .pin-btn:hover { color: var(--accent); background: var(--code-bg); }
 .pin-btn svg { width: 13px; height: 13px; }
 
-/* docked mode: persistent right sidebar — TOC on top, graph below */
+/* docked mode: persistent right sidebar — TOC on top (scrolls), graph fills the rest */
 body.cmds-docked { padding-right: 312px; }
-body.cmds-docked .side-panel {
-	display: block; right: 0; width: 312px;
-	border-radius: 0; box-shadow: none;
-	border: none; border-left: 1px solid var(--border);
+body.cmds-docked .side-tools { right: calc(312px + 1rem); }
+body.cmds-docked #tocToggle, body.cmds-docked #graphToggle { display: none; }
+body.cmds-docked .pin-btn { color: var(--accent); }
+.side-dock {
+	position: fixed; top: 0; right: 0; bottom: 0; width: 312px; z-index: 98;
+	background: var(--card-bg); border-left: 1px solid var(--border);
+	display: flex; flex-direction: column;
 }
-body.cmds-docked #tocPanel { top: 0; height: 56vh; max-height: none; }
-body.cmds-docked #graphPanel {
-	top: 56vh; height: 44vh; max-height: none;
+.side-dock .side-panel {
+	position: static; display: block; width: auto; max-height: none;
+	border: none; border-radius: 0; box-shadow: none;
+}
+.side-dock #tocPanel { flex: 0 1 auto; min-height: 120px; max-height: 58%; overflow-y: auto; }
+.side-dock #graphPanel {
+	flex: 1 1 auto; min-height: 220px; overflow: hidden;
 	border-top: 1px solid var(--border);
 	display: flex; flex-direction: column;
 }
-body.cmds-docked #graphPanel canvas { flex: 1; min-height: 0; }
-body.cmds-docked #tocToggle, body.cmds-docked #graphToggle { display: none; }
-body.cmds-docked .pin-btn { color: var(--accent); }
-@media (max-width: 1100px) {
-	body.cmds-docked { padding-right: 0; }
-	body.cmds-docked .side-panel { display: none; }
-	body.cmds-docked .side-panel.open { display: block; position: fixed; right: 1rem; top: 4rem; width: min(280px, calc(100vw - 2rem)); height: auto; max-height: calc(100vh - 6rem); border: 1px solid var(--border); border-radius: 12px; }
-	body.cmds-docked #tocToggle, body.cmds-docked #graphToggle { display: grid; }
-}
+.side-dock #graphPanel canvas { flex: 1; min-height: 0; }
+#graphCanvas { touch-action: none; cursor: grab; }
+#graphCanvas.dragging { cursor: grabbing; }
+#graphCanvas.on-node { cursor: pointer; }
 #tocList { display: flex; flex-direction: column; gap: 2px; }
 #tocList a {
 	color: var(--text); text-decoration: none; font-size: 0.82rem;
@@ -332,6 +334,8 @@ ${cssLink}
 	</button>
 </div>
 
+<div class="side-dock" id="sideDock" hidden></div>
+
 <aside class="side-panel" id="tocPanel"><div class="panel-head"><h3>Contents</h3><button class="pin-btn" data-pin aria-label="Dock panels" title="Dock / undock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l1 7 3 2H5l3-2 1-7z"/></svg></button></div><nav id="tocList"></nav></aside>
 <aside class="side-panel" id="graphPanel"><div class="panel-head"><h3>Local Graph</h3><button class="pin-btn" data-pin aria-label="Dock panels" title="Dock / undock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l1 7 3 2H5l3-2 1-7z"/></svg></button></div><canvas id="graphCanvas"></canvas>
 <div class="graph-legend"><span class="lg-link">Notes</span><span class="lg-tag">Tags</span></div></aside>
@@ -428,10 +432,9 @@ const DECRYPTION_SCRIPT = `
 </script>
 `;
 
-// TOC + local-graph side panels. Runs after content is in the DOM
-// (immediately for plain shares; after 'cmds-content-ready' for encrypted ones).
-// Panels have two modes: floating popup (toggle buttons) and docked sidebar
-// (pin button — TOC on top, graph below).
+// TOC + local-graph side panels. Two modes: floating popup and docked flex
+// sidebar (TOC scrolls on top, graph fills the rest). The graph is interactive:
+// wheel/pinch zoom, drag pan, hover highlights the node's neighborhood.
 const PANELS_SCRIPT = `
 <script>
 (function() {
@@ -447,7 +450,7 @@ const PANELS_SCRIPT = `
 			document.getElementById(k + 'Toggle').classList.toggle('active', on);
 			try { localStorage.setItem('cmds-panel-' + k, on ? '1' : '0'); } catch(e) {}
 		});
-		if (name === 'graph' && open) requestAnimationFrame(drawGraph);
+		if (name === 'graph' && open) requestAnimationFrame(function() { relayoutGraph(); });
 	}
 	function wireToggle(name) {
 		document.getElementById(name + 'Toggle').addEventListener('click', function() {
@@ -458,15 +461,25 @@ const PANELS_SCRIPT = `
 
 	function setDock(on) {
 		if (on && window.innerWidth <= 1100) on = false;
+		var dock = document.getElementById('sideDock');
+		var toc = document.getElementById('tocPanel');
+		var graph = document.getElementById('graphPanel');
 		document.body.classList.toggle('cmds-docked', on);
 		if (on) {
 			Object.keys(PANELS).forEach(function(k) {
 				document.getElementById(PANELS[k]).classList.remove('open');
 				document.getElementById(k + 'Toggle').classList.remove('active');
 			});
+			if (hasToc) dock.appendChild(toc);
+			if (hasGraph) dock.appendChild(graph);
+			dock.hidden = false;
+		} else {
+			dock.hidden = true;
+			document.body.appendChild(toc);
+			document.body.appendChild(graph);
 		}
 		try { localStorage.setItem('cmds-dock', on ? '1' : '0'); } catch(e) {}
-		if (hasGraph) requestAnimationFrame(drawGraph);
+		if (hasGraph) requestAnimationFrame(function() { relayoutGraph(); });
 	}
 
 	function headings() {
@@ -500,7 +513,7 @@ const PANELS_SCRIPT = `
 		return list.children.length >= 2;
 	}
 
-	// highlight the section currently in view
+	// highlight the section currently in view (and keep it visible in a scrolling TOC)
 	function scrollSpy() {
 		var links = document.querySelectorAll('#tocList a');
 		if (!links.length) return;
@@ -511,7 +524,10 @@ const PANELS_SCRIPT = `
 				if (!en.isIntersecting) return;
 				links.forEach(function(a) { a.classList.remove('active'); });
 				var a = map[en.target.id];
-				if (a) a.classList.add('active');
+				if (a) {
+					a.classList.add('active');
+					if (a.scrollIntoView) a.scrollIntoView({ block: 'nearest' });
+				}
 			});
 		}, { rootMargin: '0px 0px -75% 0px' });
 		headings().forEach(function(h) { if (h.id) obs.observe(h); });
@@ -560,8 +576,8 @@ const PANELS_SCRIPT = `
 		});
 	}
 
-	// ── force-directed local graph (Obsidian-style) ──
-	var graphState = null; // { nodes, edges } with layout positions cached
+	// ══════════ interactive force-directed local graph ══════════
+	var G = null; // { data, pts, adj, deg, W, H, k, tx, ty, hover }
 
 	function readGraphData() {
 		var dataEl = document.getElementById('graph-data');
@@ -575,14 +591,13 @@ const PANELS_SCRIPT = `
 	function runLayout(g, W, H) {
 		var N = g.nodes.length;
 		var pts = g.nodes.map(function(n, i) {
-			// deterministic-ish seed: rings by level
-			var a = (i * 2.399963); // golden angle
+			var a = i * 2.399963;
 			var r = n.level === 0 ? 0 : (n.level === 1 ? 0.35 : 0.7) * Math.min(W, H) / 2;
 			return { x: W / 2 + r * Math.cos(a), y: H / 2 + r * Math.sin(a), vx: 0, vy: 0 };
 		});
 		var SPRING = 0.03, REST = Math.min(W, H) / 3.2, REPEL = Math.min(W, H) * 55, GRAV = 0.008;
 		for (var it = 0; it < 300; it++) {
-			var damp = 0.85 * (1 - it / 300);
+			var damp = 0.85 * (1 - it / 340);
 			for (var i = 0; i < N; i++) {
 				for (var j = i + 1; j < N; j++) {
 					var dx = pts[j].x - pts[i].x, dy = pts[j].y - pts[i].y;
@@ -602,25 +617,23 @@ const PANELS_SCRIPT = `
 				a.vx += fx; a.vy += fy;
 				b.vx -= fx; b.vy -= fy;
 			});
-			for (var k = 0; k < N; k++) {
-				pts[k].vx += (W / 2 - pts[k].x) * GRAV;
-				pts[k].vy += (H / 2 - pts[k].y) * GRAV;
-				pts[k].x += pts[k].vx * damp;
-				pts[k].y += pts[k].vy * damp;
-				pts[k].vx *= 0.6; pts[k].vy *= 0.6;
+			for (var k2 = 0; k2 < N; k2++) {
+				pts[k2].vx += (W / 2 - pts[k2].x) * GRAV;
+				pts[k2].vy += (H / 2 - pts[k2].y) * GRAV;
+				pts[k2].x += pts[k2].vx * damp;
+				pts[k2].y += pts[k2].vy * damp;
+				pts[k2].vx *= 0.6; pts[k2].vy *= 0.6;
 			}
-			// keep the shared note pinned to the middle
 			pts[0].x = W / 2; pts[0].y = H / 2; pts[0].vx = 0; pts[0].vy = 0;
 		}
-		// fit into the canvas with a margin
 		var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
 		pts.forEach(function(pt) {
 			minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
 			minY = Math.min(minY, pt.y); maxY = Math.max(maxY, pt.y);
 		});
-		var M = 34;
+		var M = 30;
 		var sx = (W - M * 2) / Math.max(maxX - minX, 1), sy = (H - M * 2) / Math.max(maxY - minY, 1);
-		var sc = Math.min(sx, sy, 1.4);
+		var sc = Math.min(sx, sy, 1.5);
 		pts.forEach(function(pt) {
 			pt.x = M + (pt.x - minX) * sc + (W - M * 2 - (maxX - minX) * sc) / 2;
 			pt.y = M + (pt.y - minY) * sc + (H - M * 2 - (maxY - minY) * sc) / 2;
@@ -628,25 +641,44 @@ const PANELS_SCRIPT = `
 		return pts;
 	}
 
-	function drawGraph() {
+	function canvasSize() {
 		var canvas = document.getElementById('graphCanvas');
-		var g = graphState || readGraphData();
-		if (!g) return false;
-		graphState = g;
-
 		var panel = document.getElementById('graphPanel');
 		var wasHidden = !panel.classList.contains('open') && !docked();
 		if (wasHidden) { panel.style.visibility = 'hidden'; panel.classList.add('open'); }
 		var W = Math.max(canvas.clientWidth || panel.clientWidth - 36, 200);
-		var H = docked() ? Math.max(canvas.clientHeight, 220) : Math.max(240, Math.min(360, 150 + g.nodes.length * 6));
+		var H = docked() ? Math.max(canvas.clientHeight, 200) : 280;
 		if (wasHidden) { panel.classList.remove('open'); panel.style.visibility = ''; }
+		return { W: W, H: H };
+	}
 
+	function relayoutGraph() {
+		var data = G ? G.data : readGraphData();
+		if (!data) return;
+		var sz = canvasSize();
+		var adj = data.nodes.map(function() { return {}; });
+		var deg = data.nodes.map(function() { return 0; });
+		data.edges.forEach(function(e) {
+			adj[e[0]][e[1]] = true; adj[e[1]][e[0]] = true;
+			deg[e[0]]++; deg[e[1]]++;
+		});
+		G = {
+			data: data, adj: adj, deg: deg,
+			pts: runLayout(data, sz.W, sz.H),
+			W: sz.W, H: sz.H, k: 1, tx: 0, ty: 0, hover: -1,
+		};
+		renderGraph();
+	}
+
+	function renderGraph() {
+		if (!G) return;
+		var canvas = document.getElementById('graphCanvas');
 		var dpr = window.devicePixelRatio || 1;
-		canvas.width = W * dpr; canvas.height = H * dpr;
-		if (!docked()) canvas.style.height = H + 'px';
+		canvas.width = G.W * dpr; canvas.height = G.H * dpr;
+		if (!docked()) canvas.style.height = G.H + 'px';
 		var ctx = canvas.getContext('2d');
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-		ctx.clearRect(0, 0, W, H);
+		ctx.clearRect(0, 0, G.W, G.H);
 
 		var css = getComputedStyle(document.documentElement);
 		var noteColor = css.getPropertyValue('--graph-note').trim() || css.getPropertyValue('--accent').trim();
@@ -655,45 +687,134 @@ const PANELS_SCRIPT = `
 		var border = css.getPropertyValue('--border').trim();
 		var cardBg = css.getPropertyValue('--card-bg').trim();
 
-		var pts = runLayout(g, W, H);
-		var deg = g.nodes.map(function() { return 0; });
-		g.edges.forEach(function(e) { deg[e[0]]++; deg[e[1]]++; });
+		var g = G.data, pts = G.pts, k = G.k, hover = G.hover;
+		var sx = function(pt) { return pt.x * k + G.tx; };
+		var sy = function(pt) { return pt.y * k + G.ty; };
+		var inHood = function(i) { return hover < 0 || i === hover || G.adj[hover][i]; };
 
-		ctx.strokeStyle = border;
-		ctx.lineWidth = 1;
 		g.edges.forEach(function(e) {
-			ctx.globalAlpha = (g.nodes[e[0]].level === 2 || g.nodes[e[1]].level === 2) ? 0.5 : 0.8;
+			var touches = hover >= 0 && (e[0] === hover || e[1] === hover);
+			if (hover >= 0) {
+				ctx.globalAlpha = touches ? 0.95 : 0.08;
+				ctx.strokeStyle = touches ? muted : border;
+				ctx.lineWidth = touches ? 1.5 : 1;
+			} else {
+				ctx.globalAlpha = (g.nodes[e[0]].level === 2 || g.nodes[e[1]].level === 2) ? 0.45 : 0.8;
+				ctx.strokeStyle = border;
+				ctx.lineWidth = 1;
+			}
 			ctx.beginPath();
-			ctx.moveTo(pts[e[0]].x, pts[e[0]].y);
-			ctx.lineTo(pts[e[1]].x, pts[e[1]].y);
+			ctx.moveTo(sx(pts[e[0]]), sy(pts[e[0]]));
+			ctx.lineTo(sx(pts[e[1]]), sy(pts[e[1]]));
 			ctx.stroke();
 		});
-		ctx.globalAlpha = 1;
 
-		var showAllLabels = g.nodes.length <= 26;
+		var rOf = function(i) {
+			var base = i === 0 ? 7 : Math.min(3.2 + G.deg[i] * 0.6, 6.5);
+			return base * Math.pow(k, 0.75);
+		};
 		g.nodes.forEach(function(n, i) {
-			var pt = pts[i];
-			var r = i === 0 ? 8 : Math.min(3 + deg[i] * 0.7, 6.5);
-			ctx.globalAlpha = n.level === 2 ? 0.65 : 1;
+			var dim = hover >= 0 ? (inHood(i) ? 1 : 0.14) : (n.level === 2 ? 0.65 : 1);
+			ctx.globalAlpha = dim;
 			ctx.fillStyle = n.type === 'tag' ? '#E985A2' : noteColor;
-			ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2); ctx.fill();
-
-			if (i === 0 || n.level === 1 || showAllLabels) {
-				ctx.font = (i === 0 ? 'bold 10px' : '9px') + ' -apple-system, sans-serif';
-				var label = n.label.length > 16 ? n.label.slice(0, 15) + '…' : n.label;
-				var tw = ctx.measureText(label).width;
-				var lx = Math.max(2, Math.min(W - tw - 2, pt.x - tw / 2));
-				var ly = pt.y + r + 10;
-				ctx.fillStyle = cardBg;
-				ctx.globalAlpha = (n.level === 2 ? 0.65 : 1) * 0.75;
-				ctx.fillRect(lx - 2, ly - 8, tw + 4, 11);
-				ctx.globalAlpha = n.level === 2 ? 0.65 : 1;
-				ctx.fillStyle = i === 0 ? text : muted;
-				ctx.fillText(label, lx, ly);
+			ctx.beginPath(); ctx.arc(sx(pts[i]), sy(pts[i]), rOf(i), 0, Math.PI * 2); ctx.fill();
+			if (i === hover) {
+				ctx.strokeStyle = text; ctx.lineWidth = 1.5;
+				ctx.beginPath(); ctx.arc(sx(pts[i]), sy(pts[i]), rOf(i) + 2.5, 0, Math.PI * 2); ctx.stroke();
 			}
 		});
+
+		// labels: center always; L1 at normal zoom; everything once zoomed in;
+		// hovering shows the whole neighborhood regardless of zoom
+		g.nodes.forEach(function(n, i) {
+			var show;
+			if (hover >= 0) show = inHood(i);
+			else show = i === 0 || (n.level === 1 && k >= 0.75) || k >= 1.5 || g.nodes.length <= 14;
+			if (!show) return;
+			var fs = i === 0 || i === hover ? 11.5 : 10.5;
+			ctx.font = (i === 0 || i === hover ? 'bold ' : '') + fs + 'px -apple-system, sans-serif';
+			var label = n.label.length > 22 ? n.label.slice(0, 21) + '…' : n.label;
+			var tw = ctx.measureText(label).width;
+			var lx = Math.max(2, Math.min(G.W - tw - 2, sx(pts[i]) - tw / 2));
+			var ly = sy(pts[i]) + rOf(i) + fs + 2;
+			var alpha = hover >= 0 ? (inHood(i) ? 1 : 0) : (n.level === 2 && k < 2 ? 0.7 : 0.95);
+			ctx.globalAlpha = alpha * 0.8;
+			ctx.fillStyle = cardBg;
+			ctx.fillRect(lx - 3, ly - fs + 1, tw + 6, fs + 3);
+			ctx.globalAlpha = alpha;
+			ctx.fillStyle = i === 0 || i === hover ? text : muted;
+			ctx.fillText(label, lx, ly);
+		});
 		ctx.globalAlpha = 1;
-		return true;
+	}
+
+	function wireGraphInteraction() {
+		var canvas = document.getElementById('graphCanvas');
+		var dragging = false, moved = false, lastX = 0, lastY = 0;
+
+		function pick(mx, my) {
+			if (!G) return -1;
+			var best = -1, bestD = 12 * 12;
+			G.pts.forEach(function(pt, i) {
+				var dx = pt.x * G.k + G.tx - mx, dy = pt.y * G.k + G.ty - my;
+				var d = dx * dx + dy * dy;
+				if (d < bestD) { bestD = d; best = i; }
+			});
+			return best;
+		}
+		function pos(e) {
+			var r = canvas.getBoundingClientRect();
+			return { x: e.clientX - r.left, y: e.clientY - r.top };
+		}
+
+		canvas.addEventListener('wheel', function(e) {
+			if (!G) return;
+			e.preventDefault();
+			var m = pos(e);
+			var factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002));
+			var nk = Math.max(0.35, Math.min(4.5, G.k * factor));
+			factor = nk / G.k;
+			G.tx = m.x - (m.x - G.tx) * factor;
+			G.ty = m.y - (m.y - G.ty) * factor;
+			G.k = nk;
+			renderGraph();
+		}, { passive: false });
+
+		canvas.addEventListener('pointerdown', function(e) {
+			if (!G) return;
+			dragging = true; moved = false;
+			lastX = e.clientX; lastY = e.clientY;
+			canvas.classList.add('dragging');
+			canvas.setPointerCapture(e.pointerId);
+		});
+		canvas.addEventListener('pointermove', function(e) {
+			if (!G) return;
+			if (dragging) {
+				var dx = e.clientX - lastX, dy = e.clientY - lastY;
+				if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+				G.tx += dx; G.ty += dy;
+				lastX = e.clientX; lastY = e.clientY;
+				renderGraph();
+			} else {
+				var m = pos(e);
+				var h = pick(m.x, m.y);
+				canvas.classList.toggle('on-node', h >= 0);
+				if (h !== G.hover) { G.hover = h; renderGraph(); }
+			}
+		});
+		canvas.addEventListener('pointerup', function(e) {
+			dragging = false;
+			canvas.classList.remove('dragging');
+			// double-click-ish: a clean click on empty space resets the view
+			if (!moved) {
+				var m = pos(e);
+				if (pick(m.x, m.y) < 0 && G.k !== 1) { G.k = 1; G.tx = 0; G.ty = 0; renderGraph(); }
+			}
+		});
+		canvas.addEventListener('pointerleave', function() {
+			if (G && G.hover !== -1) { G.hover = -1; renderGraph(); }
+			canvas.classList.remove('on-node');
+		});
 	}
 
 	function init() {
@@ -710,9 +831,9 @@ const PANELS_SCRIPT = `
 		if (hasGraph) {
 			document.getElementById('graphToggle').hidden = false;
 			wireToggle('graph');
-			// redraw with the new palette when the theme flips
-			new MutationObserver(function() { drawGraph(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-			window.addEventListener('resize', function() { if (docked()) requestAnimationFrame(drawGraph); });
+			wireGraphInteraction();
+			new MutationObserver(function() { renderGraph(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+			window.addEventListener('resize', function() { if (docked()) requestAnimationFrame(function() { relayoutGraph(); }); });
 		}
 		if (hasToc || hasGraph) {
 			document.querySelectorAll('[data-pin]').forEach(function(btn) {
@@ -725,7 +846,6 @@ const PANELS_SCRIPT = `
 			} else if (localStorage.getItem('cmds-panel-toc') === '1' && hasToc) setPanel('toc', true);
 			else if (localStorage.getItem('cmds-panel-graph') === '1' && hasGraph) setPanel('graph', true);
 		} catch(e) {}
-		if (docked() && hasGraph) requestAnimationFrame(drawGraph);
 	}
 
 	if (document.getElementById('encrypted-data')) {
