@@ -1,4 +1,4 @@
-import { TFile, MarkdownView, App } from 'obsidian';
+import { TFile, MarkdownView, App, Component, MarkdownRenderer } from 'obsidian';
 import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType } from './types';
 import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
@@ -77,8 +77,8 @@ export class ShareApiService {
 			// The share modal's toggle wins; settings/frontmatter are the fallback.
 			const shouldEncrypt = options.encrypted ?? this.shouldEncrypt(file, app);
 
-			const extractedContent = await this.extractRenderedContent(app);
-			let htmlContent = extractedContent || this.markdownToHtml(content);
+			const extractedContent = await this.extractRenderedContent(app, file);
+			let htmlContent = extractedContent || await this.renderMarkdown(content, file, app);
 
 			// Assets are uploaded before encryption so encrypted notes keep working
 			// images. Asset URLs are content-hashed and unlisted, but they are NOT
@@ -282,10 +282,11 @@ export class ShareApiService {
 		}
 	}
 
-	private async extractRenderedContent(app: App): Promise<string | null> {
+	private async extractRenderedContent(app: App, file: TFile): Promise<string | null> {
 		try {
 			const view = app.workspace.getActiveViewOfType(MarkdownView);
-			if (!view) {
+			// the active preview may belong to a different note (file-menu / CMS re-share)
+			if (!view || view.file?.path !== file.path) {
 				return null;
 			}
 
@@ -330,154 +331,31 @@ export class ShareApiService {
 		return false;
 	}
 
-	private markdownToHtml(markdown: string): string {
-		let text = markdown;
-
+	/**
+	 * Fallback when no live Reading-view DOM is available: render through
+	 * Obsidian's own pipeline so tables, callouts, and embeds match the app.
+	 */
+	private async renderMarkdown(content: string, file: TFile, app: App): Promise<string> {
+		let text = content;
 		if (this.settings.removeFrontmatter) {
 			text = text.replace(/^---\n[\s\S]*?\n---\n?/, '');
 		}
 
-		const lines = text.split('\n');
-		const htmlLines: string[] = [];
-		let inCodeBlock = false;
-		let inList = false;
-		let listType: 'ul' | 'ol' = 'ul';
-
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-
-			if (line.startsWith('```')) {
-				if (inCodeBlock) {
-					htmlLines.push('</code></pre>');
-					inCodeBlock = false;
-				} else {
-					const lang = line.slice(3).trim();
-					htmlLines.push(`<pre><code class="language-${lang || 'text'}">`);
-					inCodeBlock = true;
+		const el = document.createElement('div');
+		const component = new Component();
+		component.load();
+		try {
+			await MarkdownRenderer.render(app, text, el, file.path, component);
+			el.querySelectorAll('[data-callout]').forEach(node => {
+				const calloutType = node.getAttribute('data-callout');
+				if (calloutType) {
+					node.classList.add(`callout-${calloutType}`);
 				}
-				continue;
-			}
-
-			if (inCodeBlock) {
-				htmlLines.push(this.escapeForHtml(line));
-				continue;
-			}
-
-			if (inList && !line.match(/^(\s*[-*+]|\s*\d+\.)\s/)) {
-				htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>');
-				inList = false;
-			}
-
-			const h6 = line.match(/^######\s+(.*)/);
-			if (h6) { htmlLines.push(`<h6>${this.inlineMarkdown(h6[1])}</h6>`); continue; }
-			const h5 = line.match(/^#####\s+(.*)/);
-			if (h5) { htmlLines.push(`<h5>${this.inlineMarkdown(h5[1])}</h5>`); continue; }
-			const h4 = line.match(/^####\s+(.*)/);
-			if (h4) { htmlLines.push(`<h4>${this.inlineMarkdown(h4[1])}</h4>`); continue; }
-			const h3 = line.match(/^###\s+(.*)/);
-			if (h3) { htmlLines.push(`<h3>${this.inlineMarkdown(h3[1])}</h3>`); continue; }
-			const h2 = line.match(/^##\s+(.*)/);
-			if (h2) { htmlLines.push(`<h2>${this.inlineMarkdown(h2[1])}</h2>`); continue; }
-			const h1 = line.match(/^#\s+(.*)/);
-			if (h1) { htmlLines.push(`<h1>${this.inlineMarkdown(h1[1])}</h1>`); continue; }
-
-			if (line.match(/^>\s?\[!(\w+)\]/)) {
-				const calloutMatch = line.match(/^>\s?\[!(\w+)\]\s*(.*)/);
-				if (calloutMatch) {
-					const calloutType = calloutMatch[1];
-					const calloutTitle = calloutMatch[2] || calloutType;
-					const calloutLines = [`<div class="callout callout-${calloutType}">`, `<div class="callout-title">${this.inlineMarkdown(calloutTitle)}</div>`, '<div class="callout-content">'];
-					let j = i + 1;
-					while (j < lines.length && lines[j].startsWith('>')) {
-						calloutLines.push(`<p>${this.inlineMarkdown(lines[j].replace(/^>\s?/, ''))}</p>`);
-						j++;
-					}
-					calloutLines.push('</div></div>');
-					htmlLines.push(calloutLines.join('\n'));
-					i = j - 1;
-					continue;
-				}
-			}
-
-			if (line.startsWith('>')) {
-				const quoteLines = [line.replace(/^>\s?/, '')];
-				let j = i + 1;
-				while (j < lines.length && lines[j].startsWith('>')) {
-					quoteLines.push(lines[j].replace(/^>\s?/, ''));
-					j++;
-				}
-				htmlLines.push(`<blockquote>${quoteLines.map(l => `<p>${this.inlineMarkdown(l)}</p>`).join('\n')}</blockquote>`);
-				i = j - 1;
-				continue;
-			}
-
-			if (line.match(/^[-*+]\s/)) {
-				if (!inList) {
-					htmlLines.push('<ul>');
-					inList = true;
-					listType = 'ul';
-				}
-				htmlLines.push(`<li>${this.inlineMarkdown(line.replace(/^[-*+]\s/, ''))}</li>`);
-				continue;
-			}
-
-			if (line.match(/^\d+\.\s/)) {
-				if (!inList) {
-					htmlLines.push('<ol>');
-					inList = true;
-					listType = 'ol';
-				}
-				htmlLines.push(`<li>${this.inlineMarkdown(line.replace(/^\d+\.\s/, ''))}</li>`);
-				continue;
-			}
-
-			if (line.match(/^---$|^\*\*\*$|^___$/)) {
-				htmlLines.push('<hr>');
-				continue;
-			}
-
-			if (line.trim() === '') {
-				htmlLines.push('');
-				continue;
-			}
-
-			htmlLines.push(`<p>${this.inlineMarkdown(line)}</p>`);
+			});
+			return el.innerHTML;
+		} finally {
+			component.unload();
 		}
-
-		if (inList) {
-			htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>');
-		}
-		if (inCodeBlock) {
-			htmlLines.push('</code></pre>');
-		}
-
-		return htmlLines.join('\n');
-	}
-
-	private inlineMarkdown(text: string): string {
-		let result = text;
-		result = result.replace(/!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_, path, alt) => {
-			return `<img src="${path}" alt="${alt || path}">`;
-		});
-		result = result.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_, link, alias) => {
-			return `<span class="internal-link">${alias || link}</span>`;
-		});
-		result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
-		result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-		result = result.replace(/`([^`]+)`/g, '<code>$1</code>');
-		result = result.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-		result = result.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-		result = result.replace(/\*(.+?)\*/g, '<em>$1</em>');
-		result = result.replace(/~~(.+?)~~/g, '<del>$1</del>');
-		result = result.replace(/==(.+?)==/g, '<mark>$1</mark>');
-		return result;
-	}
-
-	private escapeForHtml(text: string): string {
-		return text
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;');
 	}
 
 	private extractDescription(content: string): string {
