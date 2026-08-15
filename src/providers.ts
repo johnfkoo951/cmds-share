@@ -1,5 +1,4 @@
-import { requestUrl } from 'obsidian';
-import { promises as fs } from 'fs';
+import { requestUrl, RequestUrlParam } from 'obsidian';
 import {
 	AnyProviderConfig,
 	CloudProviderConfig,
@@ -68,7 +67,8 @@ export class CloudProvider implements ServerProvider {
 
 		try {
 			const nonce = Date.now().toString();
-			const response = await fetch(`${this.config.apiUrl}/v1/file/upload`, {
+			const response = await requestUrl({
+				url: `${this.config.apiUrl}/v1/file/upload`,
 				method: 'POST',
 				headers: {
 					'Content-Type': mimeType,
@@ -78,13 +78,14 @@ export class CloudProvider implements ServerProvider {
 					'x-cmds-filename': filename,
 				},
 				body: data,
+				throw: false,
 			});
 
-			if (!response.ok) {
+			if (response.status < 200 || response.status >= 300) {
 				return { success: false, error: `Upload failed (${response.status})` };
 			}
 
-			const result = await response.json();
+			const result = response.json;
 			return {
 				success: true,
 				url: this.getPublicUrl(result.filename || filename),
@@ -146,41 +147,14 @@ export class SynologyProvider implements ServerProvider {
 	constructor(private config: SynologyProviderConfig) {}
 
 	async upload(content: string, filename: string, mimeType: string): Promise<UploadResult> {
-		if (!this.config.nasUrl || !this.config.username) {
-			return { success: false, error: 'Synology NAS not configured' };
-		}
-
-		try {
-			const auth = btoa(`${this.config.username}:${this.config.password}`);
-			const uploadPath = `${this.config.sharedFolder}/${filename}`;
-
-			const response = await fetch(`${this.config.nasUrl}${uploadPath}`, {
-				method: 'PUT',
-				headers: {
-					'Authorization': `Basic ${auth}`,
-					'Content-Type': mimeType,
-				},
-				body: content,
-			});
-
-			if (!response.ok && response.status !== 201 && response.status !== 204) {
-				return { success: false, error: `Upload failed (${response.status})` };
-			}
-
-			return {
-				success: true,
-				url: this.getPublicUrl(filename),
-				key: filename,
-			};
-		} catch (error) {
-			return {
-				success: false,
-				error: error instanceof Error ? error.message : 'Unknown error',
-			};
-		}
+		return this.putToNas(content, filename, mimeType);
 	}
 
 	async uploadBinary(data: ArrayBuffer, filename: string, mimeType: string): Promise<UploadResult> {
+		return this.putToNas(data, filename, mimeType);
+	}
+
+	private async putToNas(body: string | ArrayBuffer, filename: string, mimeType: string): Promise<UploadResult> {
 		if (!this.config.nasUrl || !this.config.username) {
 			return { success: false, error: 'Synology NAS not configured' };
 		}
@@ -189,16 +163,19 @@ export class SynologyProvider implements ServerProvider {
 			const auth = btoa(`${this.config.username}:${this.config.password}`);
 			const uploadPath = `${this.config.sharedFolder}/${filename}`;
 
-			const response = await fetch(`${this.config.nasUrl}${uploadPath}`, {
+			const response = await requestUrl({
+				url: `${this.config.nasUrl}${uploadPath}`,
 				method: 'PUT',
 				headers: {
 					'Authorization': `Basic ${auth}`,
 					'Content-Type': mimeType,
 				},
-				body: data,
+				body,
+				throw: false,
 			});
 
-			if (!response.ok && response.status !== 201 && response.status !== 204) {
+			const ok = response.status >= 200 && response.status < 300;
+			if (!ok) {
 				return { success: false, error: `Upload failed (${response.status})` };
 			}
 
@@ -220,14 +197,17 @@ export class SynologyProvider implements ServerProvider {
 			const auth = btoa(`${this.config.username}:${this.config.password}`);
 			const deletePath = `${this.config.sharedFolder}/${filename}`;
 
-			const response = await fetch(`${this.config.nasUrl}${deletePath}`, {
+			const response = await requestUrl({
+				url: `${this.config.nasUrl}${deletePath}`,
 				method: 'DELETE',
 				headers: {
 					'Authorization': `Basic ${auth}`,
 				},
+				throw: false,
 			});
 
-			return { success: response.ok || response.status === 404 };
+			const ok = (response.status >= 200 && response.status < 300) || response.status === 404;
+			return { success: ok };
 		} catch (error) {
 			return {
 				success: false,
@@ -242,12 +222,14 @@ export class SynologyProvider implements ServerProvider {
 		}
 		try {
 			const auth = btoa(`${this.config.username}:${this.config.password}`);
-			const response = await fetch(this.config.nasUrl, {
+			const response = await requestUrl({
+				url: this.config.nasUrl,
 				method: 'PROPFIND',
 				headers: {
 					'Authorization': `Basic ${auth}`,
 					'Depth': '0',
 				},
+				throw: false,
 			});
 			return response.status === 207 || response.status === 200;
 		} catch {
@@ -462,66 +444,34 @@ export class SupabaseProvider implements ServerProvider {
 	constructor(private config: SupabaseProviderConfig) {}
 
 	async upload(content: string, filename: string, mimeType: string): Promise<UploadResult> {
-		if (!this.config.projectUrl || !this.config.anonKey) {
-			return { success: false, error: 'Supabase not configured' };
-		}
-
-		try {
-			const response = await fetch(
-				`${this.config.projectUrl}/storage/v1/object/${this.config.bucket}/${filename}`,
-				{
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${this.config.anonKey}`,
-						'apikey': this.config.anonKey,
-						'Content-Type': mimeType,
-						'x-upsert': 'true',
-					},
-					body: content,
-				}
-			);
-
-			if (!response.ok) {
-				const error = await response.text();
-				return { success: false, error: `Supabase error: ${error}` };
-			}
-
-			return {
-				success: true,
-				url: this.getPublicUrl(filename),
-				key: filename,
-			};
-		} catch (error) {
-			return {
-				success: false,
-				error: error instanceof Error ? error.message : 'Unknown error',
-			};
-		}
+		return this.uploadToBucket(content, filename, mimeType);
 	}
 
 	async uploadBinary(data: ArrayBuffer, filename: string, mimeType: string): Promise<UploadResult> {
+		return this.uploadToBucket(data, filename, mimeType);
+	}
+
+	private async uploadToBucket(body: string | ArrayBuffer, filename: string, mimeType: string): Promise<UploadResult> {
 		if (!this.config.projectUrl || !this.config.anonKey) {
 			return { success: false, error: 'Supabase not configured' };
 		}
 
 		try {
-			const response = await fetch(
-				`${this.config.projectUrl}/storage/v1/object/${this.config.bucket}/${filename}`,
-				{
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${this.config.anonKey}`,
-						'apikey': this.config.anonKey,
-						'Content-Type': mimeType,
-						'x-upsert': 'true',
-					},
-					body: data,
-				}
-			);
+			const response = await requestUrl({
+				url: `${this.config.projectUrl}/storage/v1/object/${this.config.bucket}/${filename}`,
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${this.config.anonKey}`,
+					'apikey': this.config.anonKey,
+					'Content-Type': mimeType,
+					'x-upsert': 'true',
+				},
+				body,
+				throw: false,
+			});
 
-			if (!response.ok) {
-				const error = await response.text();
-				return { success: false, error: `Supabase error: ${error}` };
+			if (response.status < 200 || response.status >= 300) {
+				return { success: false, error: `Supabase error: ${response.text || response.status}` };
 			}
 
 			return {
@@ -539,18 +489,18 @@ export class SupabaseProvider implements ServerProvider {
 
 	async delete(filename: string): Promise<DeleteResult> {
 		try {
-			const response = await fetch(
-				`${this.config.projectUrl}/storage/v1/object/${this.config.bucket}/${filename}`,
-				{
-					method: 'DELETE',
-					headers: {
-						'Authorization': `Bearer ${this.config.anonKey}`,
-						'apikey': this.config.anonKey,
-					},
-				}
-			);
+			const response = await requestUrl({
+				url: `${this.config.projectUrl}/storage/v1/object/${this.config.bucket}/${filename}`,
+				method: 'DELETE',
+				headers: {
+					'Authorization': `Bearer ${this.config.anonKey}`,
+					'apikey': this.config.anonKey,
+				},
+				throw: false,
+			});
 
-			return { success: response.ok || response.status === 404 };
+			const ok = (response.status >= 200 && response.status < 300) || response.status === 404;
+			return { success: ok };
 		} catch (error) {
 			return {
 				success: false,
@@ -564,17 +514,16 @@ export class SupabaseProvider implements ServerProvider {
 			return false;
 		}
 		try {
-			const response = await fetch(
-				`${this.config.projectUrl}/storage/v1/bucket/${this.config.bucket}`,
-				{
-					method: 'GET',
-					headers: {
-						'Authorization': `Bearer ${this.config.anonKey}`,
-						'apikey': this.config.anonKey,
-					},
-				}
-			);
-			return response.ok;
+			const response = await requestUrl({
+				url: `${this.config.projectUrl}/storage/v1/bucket/${this.config.bucket}`,
+				method: 'GET',
+				headers: {
+					'Authorization': `Bearer ${this.config.anonKey}`,
+					'apikey': this.config.anonKey,
+				},
+				throw: false,
+			});
+			return response.status >= 200 && response.status < 300;
 		} catch {
 			return false;
 		}
@@ -594,24 +543,23 @@ export class ConvexProvider implements ServerProvider {
 		}
 
 		try {
-			const response = await fetch(`${this.config.deploymentUrl}/api/mutation`, {
+			const response = await requestUrl({
+				url: `${this.config.deploymentUrl}/api/mutation`,
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					path: 'notes:upload',
 					args: { content, filename, mimeType },
 					format: 'json',
 				}),
+				throw: false,
 			});
 
-			if (!response.ok) {
-				const errorText = await response.text();
-				return { success: false, error: `Convex error (${response.status}): ${errorText}` };
+			if (response.status < 200 || response.status >= 300) {
+				return { success: false, error: `Convex error (${response.status}): ${response.text}` };
 			}
 
-			const result = await response.json();
+			const result = response.json;
 			if (result.status === 'error') {
 				return { success: false, error: result.errorMessage || 'Convex mutation failed' };
 			}
@@ -637,23 +585,23 @@ export class ConvexProvider implements ServerProvider {
 
 	async delete(filename: string): Promise<DeleteResult> {
 		try {
-			const response = await fetch(`${this.config.deploymentUrl}/api/mutation`, {
+			const response = await requestUrl({
+				url: `${this.config.deploymentUrl}/api/mutation`,
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					path: 'notes:deleteNote',
 					args: { filename },
 					format: 'json',
 				}),
+				throw: false,
 			});
 
-			if (!response.ok) {
+			if (response.status < 200 || response.status >= 300) {
 				return { success: false, error: `Convex error (${response.status})` };
 			}
 
-			const result = await response.json();
+			const result = response.json;
 			if (result.status === 'error') {
 				return { success: false, error: result.errorMessage };
 			}
@@ -672,21 +620,21 @@ export class ConvexProvider implements ServerProvider {
 			return false;
 		}
 		try {
-			const response = await fetch(`${this.config.deploymentUrl}/api/query`, {
+			const response = await requestUrl({
+				url: `${this.config.deploymentUrl}/api/query`,
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					path: 'notes:health',
 					args: {},
 					format: 'json',
 				}),
+				throw: false,
 			});
 
-			if (!response.ok) return false;
+			if (response.status < 200 || response.status >= 300) return false;
 
-			const result = await response.json();
+			const result = response.json;
 			return result.status === 'success' || result.value?.status === 'ok';
 		} catch {
 			return false;

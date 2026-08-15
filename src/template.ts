@@ -1,5 +1,7 @@
 import { NoteTemplateData } from './types';
 
+const FAVICON_URL = 'https://cmdspace.work/assets/logos/cmds-logo-round.png';
+
 export function generateNoteHtml(data: NoteTemplateData): string {
 	const {
 		title,
@@ -9,93 +11,204 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 		encrypted,
 		encryptedData,
 		description,
-		theme = 'auto',
 	} = data;
 
-	const metaDescription = description 
-		? `<meta name="description" content="${escapeHtml(description.slice(0, 200))}">`
-		: '';
+	const safeTitle = escapeHtml(title);
+	const safeDesc = escapeHtml((description || title).slice(0, 200));
 
-	const themeClass = theme === 'auto' 
-		? 'theme-auto' 
-		: theme === 'dark' ? 'theme-dark' : 'theme-light';
-
-	const cssLink = cssUrl 
-		? `<link rel="stylesheet" href="${cssUrl}">`
+	const cssLink = cssUrl
+		? `<link rel="stylesheet" href="${escapeAttr(cssUrl)}">`
 		: '';
 
 	const encryptedDataDiv = encrypted && encryptedData
-		? `<div id="encrypted-data" style="display:none">${encryptedData}</div>`
+		? `<script type="application/json" id="encrypted-data">${escapeJson(encryptedData)}</script>`
 		: '';
 
 	const decryptionScript = encrypted ? DECRYPTION_SCRIPT : '';
 
-	const bodyContent = encrypted 
-		? '<div id="note-content" class="markdown-preview-view"><p>Loading encrypted content...</p></div>'
-		: `<div id="note-content" class="markdown-preview-view">${content}</div>`;
+	const bodyContent = encrypted
+		? '<article id="note-content" class="markdown-rendered"><p class="cmds-loading">Decrypting…</p></article>'
+		: `<article id="note-content" class="markdown-rendered">${content}</article>`;
 
 	return `<!DOCTYPE html>
-<html lang="en" class="${themeClass}">
+<html lang="ko">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>${escapeHtml(title)}</title>
-	${metaDescription}
-	<meta property="og:title" content="${escapeHtml(title)}">
-	<meta property="og:type" content="article">
-	${cssLink}
-	<style>
-		:root {
-			--note-width: ${noteWidth};
-		}
-		
-		html, body {
-			margin: 0;
-			padding: 0;
-			min-height: 100vh;
-		}
-		
-		body {
-			display: flex;
-			justify-content: center;
-			padding: 40px 20px;
-			box-sizing: border-box;
-		}
-		
-		#note-content {
-			max-width: var(--note-width);
-			width: 100%;
-		}
-		
-		.theme-auto {
-			color-scheme: light dark;
-		}
-		
-		@media (prefers-color-scheme: dark) {
-			.theme-auto {
-				--background-primary: #1e1e1e;
-				--text-normal: #dcddde;
-			}
-		}
-		
-		#note-content.loading {
-			opacity: 0.5;
-		}
-		
-		.decrypt-error {
-			color: #e74c3c;
-			padding: 20px;
-			text-align: center;
-			border: 1px solid #e74c3c;
-			border-radius: 8px;
-			margin: 20px 0;
-		}
-	</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${safeTitle}</title>
+<meta name="description" content="${safeDesc}">
+
+<link rel="icon" type="image/png" href="${FAVICON_URL}">
+<link rel="apple-touch-icon" href="${FAVICON_URL}">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="CMDSPACE">
+<meta property="og:title" content="${safeTitle}">
+<meta property="og:description" content="${safeDesc}">
+<meta property="og:image" content="${FAVICON_URL}">
+<meta property="og:locale" content="ko_KR">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="${safeTitle}">
+<meta name="twitter:description" content="${safeDesc}">
+<meta name="twitter:image" content="${FAVICON_URL}">
+
+<style>
+:root {
+	--max: ${escapeAttr(noteWidth)};
+	--text: #1a1a1a;
+	--muted: #666;
+	--bg: #fff;
+	--accent: #134538;
+	--accent-light: #1a5c4a;
+	--accent-on: #fff;
+	--border: #e5e5e5;
+	--code-bg: #f5f5f5;
+	--card-bg: #fff;
+}
+[data-theme="dark"] {
+	--text: #f2f4f3;
+	--muted: #9aa39d;
+	--bg: #06080a;
+	--accent: #E985A2;
+	--accent-light: #F4A4B8;
+	--accent-on: #0b0f0d;
+	--border: #1a231f;
+	--code-bg: #161c19;
+	--card-bg: #0d1411;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { color-scheme: light dark; transition: background-color .2s; }
+body {
+	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard', 'Segoe UI', system-ui, sans-serif;
+	color: var(--text); background: var(--bg); line-height: 1.7;
+	font-size: 16px; -webkit-font-smoothing: antialiased;
+	transition: background-color .2s, color .2s;
+}
+.theme-toggle {
+	position: fixed; top: 1rem; right: 1rem; z-index: 100;
+	width: 36px; height: 36px;
+	background: var(--card-bg);
+	border: 1px solid var(--border);
+	border-radius: 50%;
+	cursor: pointer;
+	display: grid; place-items: center;
+	color: var(--text);
+	transition: border-color .15s, background .15s;
+}
+.theme-toggle:hover { border-color: var(--accent); }
+.theme-toggle svg { width: 16px; height: 16px; }
+
+main {
+	max-width: var(--max); margin: 0 auto; padding: 4rem 1.5rem 3rem;
+}
+
+#note-content { font-size: 1rem; }
+#note-content h1, #note-content h2, #note-content h3,
+#note-content h4, #note-content h5, #note-content h6 {
+	font-weight: 700; letter-spacing: -0.02em; line-height: 1.3;
+	margin: 2rem 0 0.75rem;
+}
+#note-content h1 { font-size: 1.85rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--text); }
+#note-content h2 { font-size: 1.4rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+#note-content h3 { font-size: 1.15rem; }
+#note-content h4 { font-size: 1rem; color: var(--muted); }
+#note-content p { margin: 0.75rem 0; }
+#note-content ul, #note-content ol { margin: 0.75rem 0 0.75rem 1.5rem; }
+#note-content li { margin: 0.25rem 0; }
+#note-content a {
+	color: var(--accent); text-decoration: none;
+	border-bottom: 1px solid transparent; transition: border-color .15s;
+}
+#note-content a:hover { border-bottom-color: var(--accent); }
+#note-content code {
+	background: var(--code-bg); padding: 0.15rem 0.4rem; border-radius: 4px;
+	font-size: 0.88em; font-family: 'SF Mono', 'Menlo', monospace;
+}
+#note-content pre {
+	background: #1a1a1a; color: #e0e0e0; padding: 1rem; border-radius: 8px;
+	overflow-x: auto; font-size: 0.85rem; line-height: 1.6;
+	font-family: 'SF Mono', 'Menlo', monospace; margin: 1rem 0;
+}
+[data-theme="dark"] #note-content pre { background: #0a0d0b; border: 1px solid var(--border); }
+#note-content pre code { background: transparent; padding: 0; font-size: 1em; }
+#note-content blockquote {
+	border-left: 3px solid var(--accent); padding: 0.5rem 1rem;
+	margin: 1rem 0; color: var(--muted); background: var(--code-bg);
+	border-radius: 0 8px 8px 0;
+}
+#note-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 1rem 0; }
+#note-content table {
+	border-collapse: collapse; width: 100%; margin: 1rem 0;
+	font-size: 0.9rem;
+}
+#note-content th, #note-content td {
+	border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left;
+}
+#note-content th { background: var(--code-bg); font-weight: 700; }
+#note-content hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+#note-content mark { background: rgba(233,133,162,0.25); padding: 0 0.2rem; border-radius: 3px; }
+#note-content .callout {
+	background: var(--code-bg); border-radius: 8px; padding: 1rem;
+	margin: 1rem 0; border-left: 3px solid var(--accent);
+}
+#note-content .callout-title { font-weight: 700; margin-bottom: 0.4rem; }
+#note-content .internal-link {
+	color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: help;
+}
+
+.cmds-meta {
+	max-width: var(--max); margin: 0 auto;
+	padding: 2rem 1.5rem 1rem; border-top: 1px solid var(--border);
+	font-size: 0.75rem; color: var(--muted); text-align: center;
+}
+.cmds-meta a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.cmds-loading { color: var(--muted); font-style: italic; }
+.decrypt-error {
+	color: #c62828; background: #fce4ec; padding: 1rem; border-radius: 8px;
+	border: 1px solid #c62828; margin: 2rem 0; text-align: center;
+}
+[data-theme="dark"] .decrypt-error { background: #4a1a24; color: #ff8899; border-color: #ff8899; }
+</style>
+${cssLink}
 </head>
 <body>
-	${encryptedDataDiv}
+
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+	<svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+</button>
+
+<main>
 	${bodyContent}
-	${decryptionScript}
+</main>
+
+<footer class="cmds-meta">
+	Shared via <a href="https://cmdspace.work" target="_blank" rel="noopener">CMDS Share</a>
+</footer>
+
+${encryptedDataDiv}
+${decryptionScript}
+
+<script>
+(function() {
+	var icon = document.getElementById('themeIcon');
+	var SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
+	var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+	function apply(theme) {
+		document.documentElement.dataset.theme = theme;
+		try { localStorage.setItem('cmds-theme', theme); } catch(e) {}
+		if (icon) icon.innerHTML = theme === 'dark' ? MOON : SUN;
+	}
+	var btn = document.getElementById('themeToggle');
+	if (btn) btn.addEventListener('click', function() {
+		apply(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+	});
+	var saved = null;
+	try { saved = localStorage.getItem('cmds-theme'); } catch(e) {}
+	var initial = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+	apply(initial);
+})();
+</script>
 </body>
 </html>`;
 }
@@ -103,201 +216,63 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 const DECRYPTION_SCRIPT = `
 <script>
 (async function() {
-	const CHUNK_SIZE = 2000;
-	
-	function base64ToArrayBuffer(base64) {
-		const binary = atob(base64);
-		const bytes = new Uint8Array(binary.length);
-		for (let i = 0; i < binary.length; i++) {
-			bytes[i] = binary.charCodeAt(i);
-		}
+	function base64ToArrayBuffer(b64) {
+		const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+		for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
 		return bytes.buffer;
 	}
-	
-	function indexToIv(index) {
+	function indexToIv(i) {
 		const iv = new Uint8Array(12);
-		const view = new DataView(iv.buffer);
-		view.setUint32(0, index, true);
+		new DataView(iv.buffer).setUint32(0, i, true);
 		return iv;
 	}
-	
-	async function getAesKey(masterKey) {
-		return await crypto.subtle.importKey(
-			'raw',
-			masterKey,
-			{ name: 'AES-GCM' },
-			false,
-			['decrypt']
-		);
-	}
-	
-	async function decrypt(ciphertext, key) {
-		const masterKey = base64ToArrayBuffer(key);
-		const aesKey = await getAesKey(masterKey);
-		const chunks = [];
-		
-		for (let i = 0; i < ciphertext.length; i++) {
-			const chunk = base64ToArrayBuffer(ciphertext[i]);
-			const decrypted = await crypto.subtle.decrypt(
-				{ name: 'AES-GCM', iv: indexToIv(i) },
-				aesKey,
-				chunk
-			);
-			chunks.push(new TextDecoder().decode(decrypted));
-		}
-		
-		return chunks.join('');
-	}
-	
 	try {
 		const key = window.location.hash.slice(1);
-		if (!key) {
-			throw new Error('No decryption key found in URL');
-		}
-		
+		if (!key) throw new Error('No decryption key in URL');
 		const dataEl = document.getElementById('encrypted-data');
-		if (!dataEl) {
-			throw new Error('No encrypted data found');
+		if (!dataEl) throw new Error('No encrypted payload');
+
+		const payload = JSON.parse(dataEl.textContent);
+		const masterKey = base64ToArrayBuffer(key);
+		const aesKey = await crypto.subtle.importKey('raw', masterKey, { name: 'AES-GCM' }, false, ['decrypt']);
+
+		const chunks = [];
+		for (let i = 0; i < payload.ciphertext.length; i++) {
+			const chunk = base64ToArrayBuffer(payload.ciphertext[i]);
+			const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: indexToIv(i) }, aesKey, chunk);
+			chunks.push(new TextDecoder().decode(decrypted));
 		}
-		
-		const encryptedData = JSON.parse(dataEl.textContent);
-		const decrypted = await decrypt(encryptedData.ciphertext, key);
-		const data = JSON.parse(decrypted);
-		
-		const contentEl = document.getElementById('note-content');
-		contentEl.innerHTML = data.content;
-		
-		if (data.title) {
-			document.title = data.title;
-		}
-	} catch (error) {
-		console.error('Decryption failed:', error);
-		const contentEl = document.getElementById('note-content');
-		contentEl.innerHTML = '<div class="decrypt-error">Failed to decrypt note. Please check the URL.</div>';
+
+		const data = JSON.parse(chunks.join(''));
+		const target = document.getElementById('note-content');
+		target.innerHTML = data.content;
+		if (data.title) document.title = data.title;
+	} catch (err) {
+		console.error('Decryption failed:', err);
+		const target = document.getElementById('note-content');
+		if (target) target.innerHTML = '<div class="decrypt-error">Failed to decrypt note. Check the URL fragment.</div>';
 	}
 })();
 </script>
 `;
 
 export function generateDefaultCss(): string {
-	return `
-:root {
-	--background-primary: #ffffff;
-	--background-secondary: #f5f6f8;
-	--text-normal: #2e3338;
-	--text-muted: #888888;
-	--text-accent: #705dcf;
-	--interactive-accent: #705dcf;
-	--link-color: #705dcf;
-	--code-background: #f5f6f8;
-	--blockquote-border: #705dcf;
-}
-
-@media (prefers-color-scheme: dark) {
-	:root {
-		--background-primary: #1e1e1e;
-		--background-secondary: #262626;
-		--text-normal: #dcddde;
-		--text-muted: #999999;
-		--text-accent: #7f6df2;
-		--interactive-accent: #7f6df2;
-		--link-color: #7f6df2;
-		--code-background: #2d2d2d;
-		--blockquote-border: #7f6df2;
-	}
-}
-
-body {
-	background: var(--background-primary);
-	color: var(--text-normal);
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
-	font-size: 16px;
-	line-height: 1.6;
-}
-
-a {
-	color: var(--link-color);
-	text-decoration: none;
-}
-
-a:hover {
-	text-decoration: underline;
-}
-
-h1, h2, h3, h4, h5, h6 {
-	margin-top: 1.5em;
-	margin-bottom: 0.5em;
-	font-weight: 600;
-}
-
-h1 { font-size: 2em; }
-h2 { font-size: 1.5em; }
-h3 { font-size: 1.25em; }
-
-code {
-	background: var(--code-background);
-	padding: 2px 6px;
-	border-radius: 4px;
-	font-family: "SF Mono", Monaco, monospace;
-	font-size: 0.9em;
-}
-
-pre {
-	background: var(--code-background);
-	padding: 16px;
-	border-radius: 8px;
-	overflow-x: auto;
-}
-
-pre code {
-	background: none;
-	padding: 0;
-}
-
-blockquote {
-	border-left: 3px solid var(--blockquote-border);
-	margin: 1em 0;
-	padding-left: 1em;
-	color: var(--text-muted);
-}
-
-img {
-	max-width: 100%;
-	height: auto;
-}
-
-table {
-	border-collapse: collapse;
-	width: 100%;
-	margin: 1em 0;
-}
-
-th, td {
-	border: 1px solid var(--background-secondary);
-	padding: 8px 12px;
-	text-align: left;
-}
-
-th {
-	background: var(--background-secondary);
-}
-
-.callout {
-	background: var(--background-secondary);
-	border-radius: 8px;
-	padding: 16px;
-	margin: 1em 0;
-}
-
-.callout-title {
-	font-weight: 600;
-	margin-bottom: 8px;
-}
-`;
+	return '';
 }
 
 function escapeHtml(text: string): string {
-	const div = document.createElement('div');
-	div.textContent = text;
-	return div.innerHTML;
+	return String(text)
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
+
+function escapeAttr(text: string): string {
+	return String(text).replace(/"/g, '&quot;');
+}
+
+function escapeJson(text: string): string {
+	return String(text).replace(/<\/script/gi, '<\\/script');
 }

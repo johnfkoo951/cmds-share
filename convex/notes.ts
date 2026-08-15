@@ -1,6 +1,8 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
+const MAX_CONTENT_BYTES = 2_000_000;
+
 export const upload = mutation({
   args: {
     content: v.string(),
@@ -68,5 +70,24 @@ export const getByFilename = query({
       .query("notes")
       .withIndex("by_filename", (q) => q.eq("filename", args.filename))
       .first();
+  },
+});
+
+export const cleanupExpired = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const expired = await ctx.db
+      .query("notes")
+      .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now))
+      .collect();
+
+    for (const note of expired) {
+      if (note.expiresAt && note.expiresAt < now) {
+        await ctx.db.delete(note._id);
+      }
+    }
+
+    return { deleted: expired.length };
   },
 });

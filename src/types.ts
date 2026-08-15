@@ -14,6 +14,8 @@ export interface SharedNote {
 	encrypted: boolean;
 	encryptionKey?: string;
 	provider: ServerProviderType;
+	vaultId: string;
+	vaultName: string;
 	createdAt: number;
 	updatedAt: number;
 	expiresAt?: number;
@@ -94,8 +96,25 @@ export type AnyProviderConfig =
 	| SupabaseProviderConfig 
 	| ConvexProviderConfig;
 
+export type ShareMode = 'quick' | 'connected';
+
+export interface AuthSession {
+	userId: string;
+	email: string;
+	accessToken: string;
+	refreshToken: string;
+	expiresAt: number;
+}
+
 export interface CMDSShareSettings {
 	uid: string;
+	vaultId: string;
+	vaultName: string;
+	shareMode: ShareMode;
+	auth?: AuthSession;
+	supabaseAuthUrl: string;
+	supabaseAnonKey: string;
+	webCmsUrl: string;
 	activeProvider: ServerProviderType;
 	encryptionMode: EncryptionMode;
 	defaultExpiration: string;
@@ -121,6 +140,12 @@ export interface CMDSShareSettings {
 
 export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	uid: '',
+	vaultId: '',
+	vaultName: '',
+	shareMode: 'quick',
+	supabaseAuthUrl: '',
+	supabaseAnonKey: '',
+	webCmsUrl: 'https://share.cmdspace.work',
 	activeProvider: 'cloud',
 	encryptionMode: 'auto',
 	defaultExpiration: '',

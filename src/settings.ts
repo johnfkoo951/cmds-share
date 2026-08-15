@@ -21,6 +21,106 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('h2', { text: 'CMDS Share Settings' });
 
+		// Share Mode
+		containerEl.createEl('h3', { text: 'Share Mode' });
+
+		new Setting(containerEl)
+			.setName('Mode')
+			.setDesc('Quick = anonymous one-click share. Connected = signed-in, all your shares aggregated across vaults.')
+			.addDropdown(dropdown => dropdown
+				.addOption('quick', 'Quick (anonymous)')
+				.addOption('connected', 'Connected (signed-in)')
+				.setValue(this.plugin.settings.shareMode)
+				.onChange(async (value) => {
+					this.plugin.settings.shareMode = value as 'quick' | 'connected';
+					await this.plugin.saveSettings();
+					this.display();
+				}));
+
+		// Vault Identity
+		containerEl.createEl('h3', { text: 'Vault Identity' });
+
+		new Setting(containerEl)
+			.setName('Vault display name')
+			.setDesc('Shown in CMS to distinguish notes from different vaults')
+			.addText(text => text
+				.setPlaceholder('e.g. CMDS Local')
+				.setValue(this.plugin.settings.vaultName)
+				.onChange(async (value) => {
+					this.plugin.settings.vaultName = value || this.plugin.app.vault.getName();
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Vault ID')
+			.setDesc('Auto-generated. Used to group shares from this vault server-side.')
+			.addText(text => text
+				.setValue(this.plugin.settings.vaultId)
+				.setDisabled(true));
+
+		// Connected Mode — Account
+		if (this.plugin.settings.shareMode === 'connected') {
+			containerEl.createEl('h3', { text: 'Account' });
+
+			const auth = this.plugin.settings.auth;
+			if (auth) {
+				new Setting(containerEl)
+					.setName('Signed in as')
+					.setDesc(auth.email)
+					.addButton(btn => btn
+						.setButtonText('Sign out')
+						.setWarning()
+						.onClick(async () => {
+							this.plugin.settings.auth = undefined;
+							await this.plugin.saveSettings();
+							this.display();
+						}));
+			} else {
+				new Setting(containerEl)
+					.setName('Sign in')
+					.setDesc('Connect your CMDS account to aggregate shares across vaults.')
+					.addButton(btn => btn
+						.setButtonText('Sign in with email')
+						.setCta()
+						.onClick(() => {
+							new Notice('Magic link sign-in: configure Supabase auth URL below first.');
+						}));
+			}
+
+			new Setting(containerEl)
+				.setName('Supabase auth URL')
+				.setDesc('Your Supabase project URL (used for auth + metadata index)')
+				.addText(text => text
+					.setPlaceholder('https://xxx.supabase.co')
+					.setValue(this.plugin.settings.supabaseAuthUrl)
+					.onChange(async (value) => {
+						this.plugin.settings.supabaseAuthUrl = value.trim();
+						await this.plugin.saveSettings();
+					}));
+
+			new Setting(containerEl)
+				.setName('Supabase anon key')
+				.setDesc('Anon (public) key for auth')
+				.addText(text => text
+					.setPlaceholder('eyJ...')
+					.setValue(this.plugin.settings.supabaseAnonKey)
+					.onChange(async (value) => {
+						this.plugin.settings.supabaseAnonKey = value.trim();
+						await this.plugin.saveSettings();
+					}));
+
+			new Setting(containerEl)
+				.setName('Web CMS URL')
+				.setDesc('External dashboard for browsing all your shares')
+				.addText(text => text
+					.setPlaceholder('https://share.cmdspace.work')
+					.setValue(this.plugin.settings.webCmsUrl)
+					.onChange(async (value) => {
+						this.plugin.settings.webCmsUrl = value.trim();
+						await this.plugin.saveSettings();
+					}));
+		}
+
 		// Provider Selection
 		containerEl.createEl('h3', { text: 'Server Provider' });
 

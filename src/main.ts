@@ -15,7 +15,7 @@ import { ShareApiService } from './api';
 import { CMDSShareSettingTab } from './settings';
 import { CMSView } from './cms';
 import { ShareOptionsModal, ConfirmDeleteModal, SharedNotesModal } from './modals';
-import { generateShortId } from './crypto';
+import { generateShortId, sha256 } from './crypto';
 
 export default class CMDSSharePlugin extends Plugin {
 	settings: CMDSShareSettings;
@@ -135,11 +135,30 @@ export default class CMDSSharePlugin extends Plugin {
 	async loadSettings(): Promise<void> {
 		const data = await this.loadData();
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings || data);
-		
+
+		let dirty = false;
 		if (!this.settings.uid) {
 			this.settings.uid = generateShortId(16);
-			await this.saveSettings();
+			dirty = true;
 		}
+		if (!this.settings.vaultId) {
+			this.settings.vaultId = await this.computeVaultId();
+			dirty = true;
+		}
+		if (!this.settings.vaultName) {
+			this.settings.vaultName = this.app.vault.getName();
+			dirty = true;
+		}
+		if (dirty) await this.saveSettings();
+	}
+
+	private async computeVaultId(): Promise<string> {
+		const adapter = this.app.vault.adapter as { basePath?: string; getBasePath?: () => string };
+		const basePath: string = adapter.basePath
+			|| adapter.getBasePath?.()
+			|| this.app.vault.getName();
+		const hash = await sha256(`cmds-share:${basePath}`);
+		return hash.slice(0, 16);
 	}
 
 	async saveSettings(): Promise<void> {
@@ -180,24 +199,30 @@ export default class CMDSSharePlugin extends Plugin {
 
 		new Notice(`Sharing: ${title}...`);
 
-		const result = await this.api.shareNote(file, content, title, this.app);
+		const existing = this.sharedNotes.get(file.path);
+		const reuseShortId = existing?.shortId;
+
+		const result = await this.api.shareNote(file, content, title, this.app, reuseShortId);
 
 		if (!result.success) {
 			new Notice(`Failed to share: ${result.error}`);
 			return;
 		}
 
+		const now = Date.now();
 		const sharedNote: SharedNote = {
-			id: result.shortId || generateShortId(8),
+			id: existing?.id || result.shortId || generateShortId(8),
 			filePath: file.path,
 			url: result.url || '',
-			shortId: result.shortId || '',
+			shortId: result.shortId || existing?.shortId || '',
 			title,
 			status: 'published',
 			encrypted: response.encrypted,
 			provider: this.settings.activeProvider,
-			createdAt: Date.now(),
-			updatedAt: Date.now(),
+			vaultId: this.settings.vaultId,
+			vaultName: this.settings.vaultName,
+			createdAt: existing?.createdAt ?? now,
+			updatedAt: now,
 			expiresAt: this.calculateExpiration(response.expiration),
 		};
 
@@ -207,7 +232,7 @@ export default class CMDSSharePlugin extends Plugin {
 		await this.updateFrontmatter(file, sharedNote);
 
 		await navigator.clipboard.writeText(result.url || '');
-		new Notice(`Shared! URL copied to clipboard`);
+		new Notice(existing ? 'Re-shared! URL copied' : 'Shared! URL copied to clipboard');
 	}
 
 	async deleteSharedNote(note: SharedNote): Promise<boolean> {
@@ -302,17 +327,14 @@ export default class CMDSSharePlugin extends Plugin {
 	}
 
 	private extractTitle(file: TFile, content: string): string {
-		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		if (frontmatterMatch) {
-			const titleMatch = frontmatterMatch[1].match(/^title:\s*["']?(.+?)["']?\s*$/m);
-			if (titleMatch) {
-				return titleMatch[1];
-			}
+		const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+		if (fm?.title && typeof fm.title === 'string') {
+			return fm.title;
 		}
 
 		const h1Match = content.match(/^#\s+(.+)$/m);
 		if (h1Match) {
-			return h1Match[1];
+			return h1Match[1].trim();
 		}
 
 		return file.basename;

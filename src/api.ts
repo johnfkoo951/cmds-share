@@ -1,8 +1,14 @@
-import { TFile, MarkdownView, Notice } from 'obsidian';
+import { TFile, MarkdownView, Notice, App, normalizePath } from 'obsidian';
 import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType } from './types';
 import { createServerProvider, ServerProvider } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
 import { generateNoteHtml, generateDefaultCss } from './template';
+
+const ASSET_MIME: Record<string, string> = {
+	png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+	gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+	avif: 'image/avif', bmp: 'image/bmp',
+};
 
 export class ShareApiService {
 	private settings: CMDSShareSettings;
@@ -47,26 +53,31 @@ export class ShareApiService {
 		file: TFile,
 		content: string,
 		title: string,
-		app: { workspace: { getActiveViewOfType: (type: typeof MarkdownView) => MarkdownView | null } }
+		app: App,
+		reuseShortId?: string
 	): Promise<ShareResult> {
 		if (!this.provider) {
 			return { success: false, error: 'No server provider configured' };
 		}
 
 		try {
-			const shortId = generateShortId(8);
-			const shouldEncrypt = this.shouldEncrypt(content);
-			let finalContent = content;
-			let encryptionKey: string | undefined;
+			const shortId = reuseShortId || generateShortId(8);
+			const shouldEncrypt = this.shouldEncrypt(file, app);
 
-			if (shouldEncrypt) {
-				const encrypted = await encryptString(JSON.stringify({ content, title }));
-				finalContent = JSON.stringify({ ciphertext: encrypted.ciphertext });
-				encryptionKey = encrypted.key;
+			let extractedContent = await this.extractRenderedContent(app);
+			let htmlContent = extractedContent || this.markdownToHtml(content);
+
+			if (!shouldEncrypt) {
+				htmlContent = await this.uploadInlineAssets(htmlContent, file, app);
 			}
 
-			const extractedContent = await this.extractRenderedContent(app);
-			const htmlContent = extractedContent || this.markdownToHtml(content);
+			let finalEncryptedData: string | undefined;
+			let encryptionKey: string | undefined;
+			if (shouldEncrypt) {
+				const encrypted = await encryptString(JSON.stringify({ content: htmlContent, title }));
+				finalEncryptedData = JSON.stringify({ ciphertext: encrypted.ciphertext });
+				encryptionKey = encrypted.key;
+			}
 
 			const description = this.extractDescription(content);
 
@@ -76,7 +87,7 @@ export class ShareApiService {
 				cssUrl: await this.uploadCss(),
 				noteWidth: this.settings.noteWidth,
 				encrypted: shouldEncrypt,
-				encryptedData: shouldEncrypt ? finalContent : undefined,
+				encryptedData: shouldEncrypt ? finalEncryptedData : undefined,
 				description: shouldEncrypt ? undefined : description,
 			});
 
@@ -102,6 +113,54 @@ export class ShareApiService {
 				success: false,
 				error: error instanceof Error ? error.message : 'Unknown error',
 			};
+		}
+	}
+
+	private async uploadInlineAssets(html: string, sourceFile: TFile, app: App): Promise<string> {
+		if (!this.provider) return html;
+
+		const imgRegex = /<img\s+[^>]*src=["']([^"']+)["'][^>]*>/g;
+		const matches = Array.from(html.matchAll(imgRegex));
+		if (matches.length === 0) return html;
+
+		const replacements = new Map<string, string>();
+
+		for (const match of matches) {
+			const src = match[1];
+			if (replacements.has(src)) continue;
+			if (/^(https?:|data:|\/\/)/.test(src)) continue;
+
+			const resolved = app.metadataCache.getFirstLinkpathDest(decodeURIComponent(src), sourceFile.path);
+			if (!resolved) continue;
+
+			try {
+				const buffer = await app.vault.readBinary(resolved);
+				const ext = resolved.extension.toLowerCase();
+				const mime = ASSET_MIME[ext] || 'application/octet-stream';
+				const url = await this.uploadAssetBuffer(buffer, ext, mime);
+				if (url) replacements.set(src, url);
+			} catch {
+				// skip — broken link
+			}
+		}
+
+		if (replacements.size === 0) return html;
+
+		return html.replace(imgRegex, (full, src) => {
+			const replaced = replacements.get(src);
+			return replaced ? full.replace(src, replaced) : full;
+		});
+	}
+
+	private async uploadAssetBuffer(buffer: ArrayBuffer, ext: string, mime: string): Promise<string | null> {
+		if (!this.provider) return null;
+		try {
+			const hash = await sha1(buffer);
+			const filename = `assets/${hash}.${ext}`;
+			const result = await this.provider.uploadBinary(buffer, filename, mime);
+			return result.success ? (result.url || this.provider.getPublicUrl(filename)) : null;
+		} catch {
+			return null;
 		}
 	}
 
@@ -157,29 +216,42 @@ export class ShareApiService {
 	}
 
 	private extractCss(): string {
+		const SELECTOR_WHITELIST = [
+			'.markdown-preview-view', '.markdown-rendered',
+			'.callout', '.cm-callout', '.internal-link', '.external-link', '.tag',
+			'.cm-strong', '.cm-em', '.cm-link', 'pre', 'code', 'blockquote',
+			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'th', 'td', 'img',
+			'a', 'p', 'ul', 'ol', 'li', 'hr', 'mark', 'del',
+		];
+		const matchesWhitelist = (selector: string): boolean => {
+			return SELECTOR_WHITELIST.some(w => selector.includes(w));
+		};
+
 		try {
 			const rules: string[] = [];
 			Array.from(document.styleSheets).forEach(sheet => {
 				try {
 					Array.from(sheet.cssRules).forEach(rule => {
-						const ruleText = rule.cssText;
-						if (!ruleText.includes('@media print')) {
-							rules.push(ruleText);
+						const text = rule.cssText;
+						if (text.includes('@media print')) return;
+						if (rule instanceof CSSStyleRule) {
+							if (matchesWhitelist(rule.selectorText)) rules.push(text);
+						} else if (rule.constructor.name === 'CSSMediaRule' || rule.constructor.name === 'CSSSupportsRule') {
+							rules.push(text);
 						}
 					});
 				} catch {
 					// Cross-origin stylesheet, skip
 				}
 			});
-			return rules.join('').replace(/\n/g, '');
+			const extracted = rules.join('').replace(/\n/g, '');
+			return extracted.length > 0 ? extracted : generateDefaultCss();
 		} catch {
 			return generateDefaultCss();
 		}
 	}
 
-	private async extractRenderedContent(
-		app: { workspace: { getActiveViewOfType: (type: typeof MarkdownView) => MarkdownView | null } }
-	): Promise<string | null> {
+	private async extractRenderedContent(app: App): Promise<string | null> {
 		try {
 			const view = app.workspace.getActiveViewOfType(MarkdownView);
 			if (!view) {
@@ -216,25 +288,14 @@ export class ShareApiService {
 		}
 	}
 
-	private shouldEncrypt(content: string): boolean {
-		if (this.settings.encryptionMode === 'always') {
-			return true;
-		}
-		if (this.settings.encryptionMode === 'never') {
-			return false;
-		}
+	private shouldEncrypt(file: TFile, app: App): boolean {
+		if (this.settings.encryptionMode === 'always') return true;
+		if (this.settings.encryptionMode === 'never') return false;
 
-		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		if (frontmatterMatch) {
-			const frontmatter = frontmatterMatch[1];
-			if (frontmatter.includes(`${this.settings.encryptedField}: true`)) {
-				return true;
-			}
-			if (frontmatter.includes(`${this.settings.encryptedField}: false`)) {
-				return false;
-			}
-		}
-
+		const fm = app.metadataCache.getFileCache(file)?.frontmatter;
+		const flag = fm?.[this.settings.encryptedField];
+		if (flag === true) return true;
+		if (flag === false) return false;
 		return false;
 	}
 
