@@ -171,6 +171,7 @@ body {
 }
 .pin-btn:hover { color: var(--accent); background: var(--code-bg); }
 .pin-btn svg { width: 13px; height: 13px; }
+.g-controls { display: flex; gap: 2px; align-items: center; }
 
 /* docked mode: persistent right sidebar — TOC on top (scrolls), graph fills the rest */
 body.cmds-docked { padding-right: 312px; }
@@ -182,6 +183,7 @@ body.cmds-docked .pin-btn { color: var(--accent); }
 	background: var(--card-bg); border-left: 1px solid var(--border);
 	display: flex; flex-direction: column;
 }
+.side-dock[hidden] { display: none; }
 .side-dock .side-panel {
 	position: static; display: block; width: auto; max-height: none;
 	border: none; border-radius: 0; box-shadow: none;
@@ -337,7 +339,7 @@ ${cssLink}
 <div class="side-dock" id="sideDock" hidden></div>
 
 <aside class="side-panel" id="tocPanel"><div class="panel-head"><h3>Contents</h3><button class="pin-btn" data-pin aria-label="Dock panels" title="Dock / undock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l1 7 3 2H5l3-2 1-7z"/></svg></button></div><nav id="tocList"></nav></aside>
-<aside class="side-panel" id="graphPanel"><div class="panel-head"><h3>Local Graph</h3><button class="pin-btn" data-pin aria-label="Dock panels" title="Dock / undock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l1 7 3 2H5l3-2 1-7z"/></svg></button></div><canvas id="graphCanvas"></canvas>
+<aside class="side-panel" id="graphPanel"><div class="panel-head"><h3>Local Graph</h3><span class="g-controls"><button class="pin-btn" id="gZoomOut" aria-label="Zoom out" title="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button><button class="pin-btn" id="gZoomIn" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button class="pin-btn" id="gReset" aria-label="Reset view" title="Reset view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg></button><button class="pin-btn" data-pin aria-label="Dock panels" title="Dock / undock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l1 7 3 2H5l3-2 1-7z"/></svg></button></span></div><canvas id="graphCanvas"></canvas>
 <div class="graph-legend"><span class="lg-link">Notes</span><span class="lg-tag">Tags</span></div></aside>
 
 <main>
@@ -729,7 +731,7 @@ const PANELS_SCRIPT = `
 		g.nodes.forEach(function(n, i) {
 			var show;
 			if (hover >= 0) show = inHood(i);
-			else show = i === 0 || (n.level === 1 && k >= 0.75) || k >= 1.5 || g.nodes.length <= 14;
+			else show = i === 0 || (n.level === 1 && (k >= 1.05 || g.nodes.length <= 20)) || k >= 1.9 || g.nodes.length <= 12;
 			if (!show) return;
 			var fs = i === 0 || i === hover ? 11.5 : 10.5;
 			ctx.font = (i === 0 || i === hover ? 'bold ' : '') + fs + 'px -apple-system, sans-serif';
@@ -748,9 +750,26 @@ const PANELS_SCRIPT = `
 		ctx.globalAlpha = 1;
 	}
 
+	function zoomBy(factor) {
+		if (!G) return;
+		var mx = G.W / 2, my = G.H / 2;
+		var nk = Math.max(0.35, Math.min(4.5, G.k * factor));
+		factor = nk / G.k;
+		G.tx = mx - (mx - G.tx) * factor;
+		G.ty = my - (my - G.ty) * factor;
+		G.k = nk;
+		renderGraph();
+	}
+
 	function wireGraphInteraction() {
 		var canvas = document.getElementById('graphCanvas');
 		var dragging = false, moved = false, lastX = 0, lastY = 0;
+
+		document.getElementById('gZoomIn').addEventListener('click', function() { zoomBy(1.35); });
+		document.getElementById('gZoomOut').addEventListener('click', function() { zoomBy(1 / 1.35); });
+		document.getElementById('gReset').addEventListener('click', function() {
+			if (G) { G.k = 1; G.tx = 0; G.ty = 0; renderGraph(); }
+		});
 
 		function pick(mx, my) {
 			if (!G) return -1;
@@ -818,6 +837,9 @@ const PANELS_SCRIPT = `
 	}
 
 	function init() {
+		// start from a known-clean panel state before restoring preferences
+		document.body.classList.remove('cmds-docked');
+		document.getElementById('sideDock').hidden = true;
 		assignHeadingIds();
 		enhanceCodeBlocks();
 		headingAnchors();
@@ -833,7 +855,10 @@ const PANELS_SCRIPT = `
 			wireToggle('graph');
 			wireGraphInteraction();
 			new MutationObserver(function() { renderGraph(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-			window.addEventListener('resize', function() { if (docked()) requestAnimationFrame(function() { relayoutGraph(); }); });
+			window.addEventListener('resize', function() {
+				if (docked() && window.innerWidth <= 1100) { setDock(false); return; }
+				if (docked()) requestAnimationFrame(function() { relayoutGraph(); });
+			});
 		}
 		if (hasToc || hasGraph) {
 			document.querySelectorAll('[data-pin]').forEach(function(btn) {
