@@ -17,6 +17,7 @@ const DARK_VARS = `
 	--card-bg: #0d1411;
 	--pre-bg: #0a0d0b;
 	--pre-fg: #e0e0e0;
+	--graph-note: #2fb488;
 `;
 
 export function generateNoteHtml(data: NoteTemplateData): string {
@@ -110,6 +111,7 @@ ${urlMeta}
 	--card-bg: #fff;
 	--pre-bg: #f5f6f4;
 	--pre-fg: #24292e;
+	--graph-note: #22896a;
 }
 [data-theme="dark"] {${DARK_VARS}}
 @media (prefers-color-scheme: dark) {
@@ -154,9 +156,43 @@ body {
 	box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 .side-panel.open { display: block; }
-.side-panel h3 {
+.panel-head {
+	display: flex; align-items: center; justify-content: space-between;
+	margin-bottom: 0.6rem;
+}
+.panel-head h3 {
 	font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-	letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.6rem;
+	letter-spacing: 0.08em; color: var(--muted);
+}
+.pin-btn {
+	background: none; border: none; cursor: pointer; color: var(--muted);
+	width: 22px; height: 22px; display: grid; place-items: center;
+	border-radius: 5px;
+}
+.pin-btn:hover { color: var(--accent); background: var(--code-bg); }
+.pin-btn svg { width: 13px; height: 13px; }
+
+/* docked mode: persistent right sidebar — TOC on top, graph below */
+body.cmds-docked { padding-right: 312px; }
+body.cmds-docked .side-panel {
+	display: block; right: 0; width: 312px;
+	border-radius: 0; box-shadow: none;
+	border: none; border-left: 1px solid var(--border);
+}
+body.cmds-docked #tocPanel { top: 0; height: 56vh; max-height: none; }
+body.cmds-docked #graphPanel {
+	top: 56vh; height: 44vh; max-height: none;
+	border-top: 1px solid var(--border);
+	display: flex; flex-direction: column;
+}
+body.cmds-docked #graphPanel canvas { flex: 1; min-height: 0; }
+body.cmds-docked #tocToggle, body.cmds-docked #graphToggle { display: none; }
+body.cmds-docked .pin-btn { color: var(--accent); }
+@media (max-width: 1100px) {
+	body.cmds-docked { padding-right: 0; }
+	body.cmds-docked .side-panel { display: none; }
+	body.cmds-docked .side-panel.open { display: block; position: fixed; right: 1rem; top: 4rem; width: min(280px, calc(100vw - 2rem)); height: auto; max-height: calc(100vh - 6rem); border: 1px solid var(--border); border-radius: 12px; }
+	body.cmds-docked #tocToggle, body.cmds-docked #graphToggle { display: grid; }
 }
 #tocList { display: flex; flex-direction: column; gap: 2px; }
 #tocList a {
@@ -165,6 +201,7 @@ body {
 	display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 #tocList a:hover { background: var(--code-bg); color: var(--accent); }
+#tocList a.active { background: var(--code-bg); color: var(--accent); font-weight: 600; }
 #tocList a.toc-h2 { padding-left: 1.1rem; }
 #tocList a.toc-h3 { padding-left: 1.7rem; font-size: 0.78rem; color: var(--muted); }
 #tocList a.toc-h4 { padding-left: 2.3rem; font-size: 0.78rem; color: var(--muted); }
@@ -177,7 +214,7 @@ body {
 	content: ''; display: inline-block; width: 8px; height: 8px;
 	border-radius: 50%; margin-right: 4px;
 }
-.graph-legend .lg-link::before { background: var(--accent); }
+.graph-legend .lg-link::before { background: var(--graph-note); }
 .graph-legend .lg-tag::before { background: #E985A2; }
 
 main {
@@ -212,7 +249,27 @@ main {
 	padding: 1rem; border-radius: 8px;
 	overflow-x: auto; font-size: 0.85rem; line-height: 1.6;
 	font-family: 'SF Mono', 'Menlo', monospace; margin: 1rem 0;
+	position: relative;
 }
+.code-copy {
+	position: absolute; top: 8px; right: 8px;
+	width: 28px; height: 28px; border-radius: 6px;
+	background: var(--card-bg); border: 1px solid var(--border);
+	color: var(--muted); cursor: pointer;
+	display: grid; place-items: center;
+	opacity: 0; transition: opacity .15s, color .15s, border-color .15s;
+}
+#note-content pre:hover .code-copy, .code-copy.copied { opacity: 1; }
+.code-copy:hover, .code-copy.copied { color: var(--accent); border-color: var(--accent); }
+.code-copy svg { width: 14px; height: 14px; }
+.h-anchor {
+	margin-left: 0.4rem; opacity: 0; color: var(--muted);
+	border-bottom: none !important; transition: opacity .15s, color .15s;
+}
+.h-anchor svg { width: 0.75em; height: 0.75em; }
+.h-anchor:hover { color: var(--accent); }
+#note-content h1:hover .h-anchor, #note-content h2:hover .h-anchor,
+#note-content h3:hover .h-anchor, #note-content h4:hover .h-anchor { opacity: 0.75; }
 #note-content pre code { background: transparent; padding: 0; font-size: 1em; }
 #note-content blockquote {
 	border-left: 3px solid var(--accent); padding: 0.5rem 1rem;
@@ -275,9 +332,9 @@ ${cssLink}
 	</button>
 </div>
 
-<aside class="side-panel" id="tocPanel"><h3>Contents</h3><nav id="tocList"></nav></aside>
-<aside class="side-panel" id="graphPanel"><h3>Local Graph</h3><canvas id="graphCanvas"></canvas>
-<div class="graph-legend"><span class="lg-link">Linked notes</span><span class="lg-tag">Tags</span></div></aside>
+<aside class="side-panel" id="tocPanel"><div class="panel-head"><h3>Contents</h3><button class="pin-btn" data-pin aria-label="Dock panels" title="Dock / undock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l1 7 3 2H5l3-2 1-7z"/></svg></button></div><nav id="tocList"></nav></aside>
+<aside class="side-panel" id="graphPanel"><div class="panel-head"><h3>Local Graph</h3><button class="pin-btn" data-pin aria-label="Dock panels" title="Dock / undock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l1 7 3 2H5l3-2 1-7z"/></svg></button></div><canvas id="graphCanvas"></canvas>
+<div class="graph-legend"><span class="lg-link">Notes</span><span class="lg-tag">Tags</span></div></aside>
 
 <main>
 	${bodyContent}
@@ -373,10 +430,15 @@ const DECRYPTION_SCRIPT = `
 
 // TOC + local-graph side panels. Runs after content is in the DOM
 // (immediately for plain shares; after 'cmds-content-ready' for encrypted ones).
+// Panels have two modes: floating popup (toggle buttons) and docked sidebar
+// (pin button — TOC on top, graph below).
 const PANELS_SCRIPT = `
 <script>
 (function() {
 	var PANELS = { toc: 'tocPanel', graph: 'graphPanel' };
+	var hasToc = false, hasGraph = false;
+
+	function docked() { return document.body.classList.contains('cmds-docked'); }
 
 	function setPanel(name, open) {
 		Object.keys(PANELS).forEach(function(k) {
@@ -385,6 +447,7 @@ const PANELS_SCRIPT = `
 			document.getElementById(k + 'Toggle').classList.toggle('active', on);
 			try { localStorage.setItem('cmds-panel-' + k, on ? '1' : '0'); } catch(e) {}
 		});
+		if (name === 'graph' && open) requestAnimationFrame(drawGraph);
 	}
 	function wireToggle(name) {
 		document.getElementById(name + 'Toggle').addEventListener('click', function() {
@@ -393,19 +456,40 @@ const PANELS_SCRIPT = `
 		});
 	}
 
-	function buildToc() {
-		var article = document.getElementById('note-content');
-		var heads = article.querySelectorAll('h1, h2, h3, h4');
-		if (heads.length < 2) return false;
-		var list = document.getElementById('tocList');
-		list.innerHTML = '';
+	function setDock(on) {
+		if (on && window.innerWidth <= 1100) on = false;
+		document.body.classList.toggle('cmds-docked', on);
+		if (on) {
+			Object.keys(PANELS).forEach(function(k) {
+				document.getElementById(PANELS[k]).classList.remove('open');
+				document.getElementById(k + 'Toggle').classList.remove('active');
+			});
+		}
+		try { localStorage.setItem('cmds-dock', on ? '1' : '0'); } catch(e) {}
+		if (hasGraph) requestAnimationFrame(drawGraph);
+	}
+
+	function headings() {
+		return document.querySelectorAll('#note-content h1, #note-content h2, #note-content h3, #note-content h4');
+	}
+
+	function assignHeadingIds() {
 		var used = {};
-		heads.forEach(function(h) {
+		headings().forEach(function(h) {
 			var text = (h.textContent || '').trim();
-			if (!text) return;
+			if (!text || h.id) return;
 			var slug = text.toLowerCase().replace(/[^0-9a-z\\uAC00-\\uD7A3\\u3131-\\u318E\\s-]/g, '').replace(/\\s+/g, '-') || 'section';
 			if (used[slug] != null) { used[slug]++; slug = slug + '-' + used[slug]; } else { used[slug] = 0; }
-			if (!h.id) h.id = slug;
+			h.id = slug;
+		});
+	}
+
+	function buildToc() {
+		var list = document.getElementById('tocList');
+		list.innerHTML = '';
+		headings().forEach(function(h) {
+			var text = (h.textContent || '').trim();
+			if (!text || !h.id) return;
 			var a = document.createElement('a');
 			a.href = '#' + h.id;
 			a.textContent = text;
@@ -416,77 +500,232 @@ const PANELS_SCRIPT = `
 		return list.children.length >= 2;
 	}
 
+	// highlight the section currently in view
+	function scrollSpy() {
+		var links = document.querySelectorAll('#tocList a');
+		if (!links.length) return;
+		var map = {};
+		links.forEach(function(a) { map[decodeURIComponent(a.hash.slice(1))] = a; });
+		var obs = new IntersectionObserver(function(entries) {
+			entries.forEach(function(en) {
+				if (!en.isIntersecting) return;
+				links.forEach(function(a) { a.classList.remove('active'); });
+				var a = map[en.target.id];
+				if (a) a.classList.add('active');
+			});
+		}, { rootMargin: '0px 0px -75% 0px' });
+		headings().forEach(function(h) { if (h.id) obs.observe(h); });
+	}
+
+	var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15H4.5A2.5 2.5 0 0 1 2 12.5v-8A2.5 2.5 0 0 1 4.5 2h8A2.5 2.5 0 0 1 15 4.5V5"/></svg>';
+	var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+	var ICON_LINK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+
+	function enhanceCodeBlocks() {
+		document.querySelectorAll('#note-content pre').forEach(function(pre) {
+			if (pre.querySelector('.code-copy')) return;
+			var btn = document.createElement('button');
+			btn.className = 'code-copy';
+			btn.setAttribute('aria-label', 'Copy code');
+			btn.innerHTML = ICON_COPY;
+			btn.addEventListener('click', function() {
+				var code = pre.querySelector('code');
+				var textToCopy = (code || pre).innerText.replace(/\\n$/, '');
+				navigator.clipboard.writeText(textToCopy).then(function() {
+					btn.innerHTML = ICON_CHECK;
+					btn.classList.add('copied');
+					setTimeout(function() { btn.innerHTML = ICON_COPY; btn.classList.remove('copied'); }, 1500);
+				});
+			});
+			pre.appendChild(btn);
+		});
+	}
+
+	// hover link icon on headings — click copies the deep link
+	function headingAnchors() {
+		headings().forEach(function(h) {
+			if (!h.id || h.querySelector('.h-anchor')) return;
+			var a = document.createElement('a');
+			a.className = 'h-anchor';
+			a.href = '#' + h.id;
+			a.setAttribute('aria-label', 'Copy link to section');
+			a.innerHTML = ICON_LINK;
+			a.addEventListener('click', function(e) {
+				e.preventDefault();
+				history.replaceState(null, '', '#' + h.id);
+				try { navigator.clipboard.writeText(location.href.split('#')[0] + '#' + h.id); } catch(err) {}
+				h.scrollIntoView({ behavior: 'smooth' });
+			});
+			h.appendChild(a);
+		});
+	}
+
+	// ── force-directed local graph (Obsidian-style) ──
+	var graphState = null; // { nodes, edges } with layout positions cached
+
+	function readGraphData() {
+		var dataEl = document.getElementById('graph-data');
+		if (!dataEl) return null;
+		var g;
+		try { g = JSON.parse(dataEl.textContent); } catch(e) { return null; }
+		if (!g.nodes || g.nodes.length < 2) return null;
+		return g;
+	}
+
+	function runLayout(g, W, H) {
+		var N = g.nodes.length;
+		var pts = g.nodes.map(function(n, i) {
+			// deterministic-ish seed: rings by level
+			var a = (i * 2.399963); // golden angle
+			var r = n.level === 0 ? 0 : (n.level === 1 ? 0.35 : 0.7) * Math.min(W, H) / 2;
+			return { x: W / 2 + r * Math.cos(a), y: H / 2 + r * Math.sin(a), vx: 0, vy: 0 };
+		});
+		var SPRING = 0.03, REST = Math.min(W, H) / 3.2, REPEL = Math.min(W, H) * 55, GRAV = 0.008;
+		for (var it = 0; it < 300; it++) {
+			var damp = 0.85 * (1 - it / 300);
+			for (var i = 0; i < N; i++) {
+				for (var j = i + 1; j < N; j++) {
+					var dx = pts[j].x - pts[i].x, dy = pts[j].y - pts[i].y;
+					var d2 = dx * dx + dy * dy + 0.01, d = Math.sqrt(d2);
+					var f = Math.min(REPEL / d2, 8);
+					var fx = (dx / d) * f, fy = (dy / d) * f;
+					pts[i].vx -= fx; pts[i].vy -= fy;
+					pts[j].vx += fx; pts[j].vy += fy;
+				}
+			}
+			g.edges.forEach(function(e) {
+				var a = pts[e[0]], b = pts[e[1]];
+				var dx = b.x - a.x, dy = b.y - a.y;
+				var d = Math.sqrt(dx * dx + dy * dy) + 0.01;
+				var f = SPRING * (d - REST);
+				var fx = (dx / d) * f, fy = (dy / d) * f;
+				a.vx += fx; a.vy += fy;
+				b.vx -= fx; b.vy -= fy;
+			});
+			for (var k = 0; k < N; k++) {
+				pts[k].vx += (W / 2 - pts[k].x) * GRAV;
+				pts[k].vy += (H / 2 - pts[k].y) * GRAV;
+				pts[k].x += pts[k].vx * damp;
+				pts[k].y += pts[k].vy * damp;
+				pts[k].vx *= 0.6; pts[k].vy *= 0.6;
+			}
+			// keep the shared note pinned to the middle
+			pts[0].x = W / 2; pts[0].y = H / 2; pts[0].vx = 0; pts[0].vy = 0;
+		}
+		// fit into the canvas with a margin
+		var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+		pts.forEach(function(pt) {
+			minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+			minY = Math.min(minY, pt.y); maxY = Math.max(maxY, pt.y);
+		});
+		var M = 34;
+		var sx = (W - M * 2) / Math.max(maxX - minX, 1), sy = (H - M * 2) / Math.max(maxY - minY, 1);
+		var sc = Math.min(sx, sy, 1.4);
+		pts.forEach(function(pt) {
+			pt.x = M + (pt.x - minX) * sc + (W - M * 2 - (maxX - minX) * sc) / 2;
+			pt.y = M + (pt.y - minY) * sc + (H - M * 2 - (maxY - minY) * sc) / 2;
+		});
+		return pts;
+	}
+
 	function drawGraph() {
 		var canvas = document.getElementById('graphCanvas');
-		var dataEl = document.getElementById('graph-data');
-		if (!dataEl) return false;
-		var g;
-		try { g = JSON.parse(dataEl.textContent); } catch(e) { return false; }
-		var nodes = (g.links || []).map(function(n) { return { label: n, type: 'link' }; })
-			.concat((g.tags || []).map(function(n) { return { label: '#' + n, type: 'tag' }; }));
-		if (nodes.length === 0) return false;
+		var g = graphState || readGraphData();
+		if (!g) return false;
+		graphState = g;
 
-		var css = getComputedStyle(document.documentElement);
-		var W = 246, H = Math.max(220, Math.min(340, 140 + nodes.length * 12));
+		var panel = document.getElementById('graphPanel');
+		var wasHidden = !panel.classList.contains('open') && !docked();
+		if (wasHidden) { panel.style.visibility = 'hidden'; panel.classList.add('open'); }
+		var W = Math.max(canvas.clientWidth || panel.clientWidth - 36, 200);
+		var H = docked() ? Math.max(canvas.clientHeight, 220) : Math.max(240, Math.min(360, 150 + g.nodes.length * 6));
+		if (wasHidden) { panel.classList.remove('open'); panel.style.visibility = ''; }
+
 		var dpr = window.devicePixelRatio || 1;
 		canvas.width = W * dpr; canvas.height = H * dpr;
-		canvas.style.height = H + 'px';
+		if (!docked()) canvas.style.height = H + 'px';
 		var ctx = canvas.getContext('2d');
-		ctx.scale(dpr, dpr);
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		ctx.clearRect(0, 0, W, H);
 
-		var accent = css.getPropertyValue('--accent').trim();
+		var css = getComputedStyle(document.documentElement);
+		var noteColor = css.getPropertyValue('--graph-note').trim() || css.getPropertyValue('--accent').trim();
 		var muted = css.getPropertyValue('--muted').trim();
 		var text = css.getPropertyValue('--text').trim();
 		var border = css.getPropertyValue('--border').trim();
-		var cx = W / 2, cy = H / 2;
-		var r = Math.min(W, H) / 2 - 34;
+		var cardBg = css.getPropertyValue('--card-bg').trim();
 
-		ctx.font = '9px -apple-system, sans-serif';
-		nodes.forEach(function(n, i) {
-			var a = (Math.PI * 2 * i) / nodes.length - Math.PI / 2;
-			n.x = cx + r * Math.cos(a);
-			n.y = cy + r * Math.sin(a);
-			ctx.strokeStyle = border;
-			ctx.lineWidth = 1;
-			ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(n.x, n.y); ctx.stroke();
+		var pts = runLayout(g, W, H);
+		var deg = g.nodes.map(function() { return 0; });
+		g.edges.forEach(function(e) { deg[e[0]]++; deg[e[1]]++; });
+
+		ctx.strokeStyle = border;
+		ctx.lineWidth = 1;
+		g.edges.forEach(function(e) {
+			ctx.globalAlpha = (g.nodes[e[0]].level === 2 || g.nodes[e[1]].level === 2) ? 0.5 : 0.8;
+			ctx.beginPath();
+			ctx.moveTo(pts[e[0]].x, pts[e[0]].y);
+			ctx.lineTo(pts[e[1]].x, pts[e[1]].y);
+			ctx.stroke();
 		});
-		nodes.forEach(function(n) {
-			ctx.fillStyle = n.type === 'tag' ? '#E985A2' : accent;
-			ctx.beginPath(); ctx.arc(n.x, n.y, 4, 0, Math.PI * 2); ctx.fill();
-			ctx.fillStyle = muted;
-			var label = n.label.length > 14 ? n.label.slice(0, 13) + '…' : n.label;
-			var tw = ctx.measureText(label).width;
-			var lx = n.x < cx - 4 ? n.x - tw - 7 : (n.x > cx + 4 ? n.x + 7 : n.x - tw / 2);
-			var ly = n.y < cy ? n.y - 8 : n.y + 14;
-			ctx.fillText(label, lx, ly);
+		ctx.globalAlpha = 1;
+
+		var showAllLabels = g.nodes.length <= 26;
+		g.nodes.forEach(function(n, i) {
+			var pt = pts[i];
+			var r = i === 0 ? 8 : Math.min(3 + deg[i] * 0.7, 6.5);
+			ctx.globalAlpha = n.level === 2 ? 0.65 : 1;
+			ctx.fillStyle = n.type === 'tag' ? '#E985A2' : noteColor;
+			ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2); ctx.fill();
+
+			if (i === 0 || n.level === 1 || showAllLabels) {
+				ctx.font = (i === 0 ? 'bold 10px' : '9px') + ' -apple-system, sans-serif';
+				var label = n.label.length > 16 ? n.label.slice(0, 15) + '…' : n.label;
+				var tw = ctx.measureText(label).width;
+				var lx = Math.max(2, Math.min(W - tw - 2, pt.x - tw / 2));
+				var ly = pt.y + r + 10;
+				ctx.fillStyle = cardBg;
+				ctx.globalAlpha = (n.level === 2 ? 0.65 : 1) * 0.75;
+				ctx.fillRect(lx - 2, ly - 8, tw + 4, 11);
+				ctx.globalAlpha = n.level === 2 ? 0.65 : 1;
+				ctx.fillStyle = i === 0 ? text : muted;
+				ctx.fillText(label, lx, ly);
+			}
 		});
-		ctx.fillStyle = accent;
-		ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
-		ctx.fillStyle = text;
-		ctx.font = 'bold 10px -apple-system, sans-serif';
-		var t = (g.title || '').length > 16 ? g.title.slice(0, 15) + '…' : (g.title || '');
-		ctx.fillText(t, cx - ctx.measureText(t).width / 2, cy + 22);
+		ctx.globalAlpha = 1;
 		return true;
 	}
 
 	function init() {
-		if (buildToc()) {
-			var tocBtn = document.getElementById('tocToggle');
-			tocBtn.hidden = false;
+		assignHeadingIds();
+		enhanceCodeBlocks();
+		headingAnchors();
+		hasToc = buildToc();
+		if (hasToc) {
+			document.getElementById('tocToggle').hidden = false;
 			wireToggle('toc');
+			scrollSpy();
 		}
-		if (drawGraph()) {
-			var gBtn = document.getElementById('graphToggle');
-			gBtn.hidden = false;
+		hasGraph = !!readGraphData();
+		if (hasGraph) {
+			document.getElementById('graphToggle').hidden = false;
 			wireToggle('graph');
 			// redraw with the new palette when the theme flips
-			new MutationObserver(drawGraph).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+			new MutationObserver(function() { drawGraph(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+			window.addEventListener('resize', function() { if (docked()) requestAnimationFrame(drawGraph); });
+		}
+		if (hasToc || hasGraph) {
+			document.querySelectorAll('[data-pin]').forEach(function(btn) {
+				btn.addEventListener('click', function() { setDock(!docked()); });
+			});
 		}
 		try {
-			if (localStorage.getItem('cmds-panel-toc') === '1' && !document.getElementById('tocToggle').hidden) setPanel('toc', true);
-			else if (localStorage.getItem('cmds-panel-graph') === '1' && !document.getElementById('graphToggle').hidden) setPanel('graph', true);
+			if (localStorage.getItem('cmds-dock') === '1' && (hasToc || hasGraph)) {
+				setDock(true);
+			} else if (localStorage.getItem('cmds-panel-toc') === '1' && hasToc) setPanel('toc', true);
+			else if (localStorage.getItem('cmds-panel-graph') === '1' && hasGraph) setPanel('graph', true);
 		} catch(e) {}
+		if (docked() && hasGraph) requestAnimationFrame(drawGraph);
 	}
 
 	if (document.getElementById('encrypted-data')) {

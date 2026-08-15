@@ -1,5 +1,5 @@
 import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags } from 'obsidian';
-import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType } from './types';
+import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType, NoteGraphData } from './types';
 import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
 import { generateNoteHtml } from './template';
@@ -374,24 +374,89 @@ export class ShareApiService {
 		}
 	}
 
-	/** Outgoing wiki-links + tags for the share page's local-graph panel. */
-	private collectGraphData(file: TFile, title: string, app: App): { title: string; links: string[]; tags: string[] } | undefined {
-		const cache = app.metadataCache.getFileCache(file);
-		if (!cache) return undefined;
+	/**
+	 * Local-graph data for the share page: the note, its direct neighbors
+	 * (outgoing links, backlinks, tags), edges BETWEEN those neighbors, and a
+	 * capped ring of second-degree notes — same shape as Obsidian's local graph.
+	 */
+	private collectGraphData(file: TFile, title: string, app: App): NoteGraphData | undefined {
+		const MAX_L1 = 16;
+		const MAX_NODES = 42;
 
-		const links = [...new Set(
-			(cache.links || [])
+		const mc = app.metadataCache;
+		const resolved = mc.resolvedLinks as Record<string, Record<string, number>>;
+		const basename = (path: string) => (path.split('/').pop() || path).replace(/\.md$/, '');
+
+		const nodes: { id: string; label: string; type: 'note' | 'tag'; level: number }[] = [];
+		const index = new Map<string, number>();
+		const edgeSet = new Set<string>();
+		const edges: [number, number][] = [];
+
+		const addNode = (id: string, label: string, type: 'note' | 'tag', level: number): number => {
+			const existing = index.get(id);
+			if (existing !== undefined) return existing;
+			if (nodes.length >= MAX_NODES) return -1;
+			nodes.push({ id, label, type, level });
+			index.set(id, nodes.length - 1);
+			return nodes.length - 1;
+		};
+		const addEdge = (a: number, b: number) => {
+			if (a < 0 || b < 0 || a === b) return;
+			const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+			if (edgeSet.has(key)) return;
+			edgeSet.add(key);
+			edges.push([a, b]);
+		};
+		const tagsOf = (path: string): string[] => {
+			const f = app.vault.getAbstractFileByPath(path);
+			if (!(f instanceof TFile)) return [];
+			const cache = mc.getFileCache(f);
+			return cache ? (getAllTags(cache) || []).map(t => t.replace(/^#/, '')) : [];
+		};
+
+		const centerIdx = addNode(file.path, title, 'note', 0);
+
+		// level 1: outgoing links, backlinks, tags
+		const outgoing = Object.keys(resolved[file.path] || {});
+		const backlinks: string[] = [];
+		for (const src of Object.keys(resolved)) {
+			if (src !== file.path && resolved[src]?.[file.path]) backlinks.push(src);
+		}
+		const l1Notes = [...new Set([...outgoing, ...backlinks])].slice(0, MAX_L1);
+		for (const p of l1Notes) addEdge(centerIdx, addNode(p, basename(p), 'note', 1));
+		for (const t of tagsOf(file.path).slice(0, 8)) addEdge(centerIdx, addNode(`#${t}`, `#${t}`, 'tag', 1));
+
+		// unresolved outgoing links still show as leaf nodes
+		const cache = mc.getFileCache(file);
+		const unresolved = [...new Set(
+			(cache?.links || [])
 				.map(l => l.link.split('#')[0].split('|')[0].trim())
-				.filter(Boolean)
-				.map(l => l.split('/').pop() || l)
-		)].slice(0, 20);
+				.filter(l => l && !mc.getFirstLinkpathDest(l, file.path))
+		)].slice(0, 6);
+		for (const l of unresolved) addEdge(centerIdx, addNode(`?${l}`, l.split('/').pop() || l, 'note', 1));
 
-		const tags = [...new Set(
-			(getAllTags(cache) || []).map(t => t.replace(/^#/, ''))
-		)].slice(0, 15);
+		// level 2: neighbors' own links/tags — edges between existing nodes first,
+		// then grow the ring while the node budget lasts
+		for (const p of l1Notes) {
+			const from = index.get(p);
+			if (from === undefined) continue;
+			for (const target of Object.keys(resolved[p] || {})) {
+				if (target === file.path) continue;
+				const existing = index.get(target);
+				addEdge(from, existing !== undefined ? existing : addNode(target, basename(target), 'note', 2));
+			}
+			for (const t of tagsOf(p)) {
+				const existing = index.get(`#${t}`);
+				if (existing !== undefined) addEdge(from, existing);
+			}
+		}
 
-		if (links.length === 0 && tags.length === 0) return undefined;
-		return { title, links, tags };
+		if (nodes.length <= 1) return undefined;
+		return {
+			title,
+			nodes: nodes.map(n => ({ label: n.label, type: n.type, level: n.level })),
+			edges,
+		};
 	}
 
 	private extractDescription(content: string): string {

@@ -188,10 +188,18 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	debugMode: false,
 };
 
+export interface NoteGraphNode {
+	label: string;
+	type: 'note' | 'tag';
+	/** 0 = the shared note itself, 1 = direct neighbor, 2 = neighbor-of-neighbor */
+	level: number;
+}
+
 export interface NoteGraphData {
 	title: string;
-	links: string[];
-	tags: string[];
+	/** nodes[0] is always the shared note */
+	nodes: NoteGraphNode[];
+	edges: [number, number][];
 }
 
 export interface NoteTemplateData {
