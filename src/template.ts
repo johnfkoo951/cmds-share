@@ -15,6 +15,8 @@ const DARK_VARS = `
 	--border: #1a231f;
 	--code-bg: #161c19;
 	--card-bg: #0d1411;
+	--pre-bg: #0a0d0b;
+	--pre-fg: #e0e0e0;
 `;
 
 export function generateNoteHtml(data: NoteTemplateData): string {
@@ -28,6 +30,7 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 		encrypted,
 		encryptedData,
 		description,
+		graph,
 	} = data;
 
 	const safeTitle = escapeHtml(title);
@@ -47,6 +50,10 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 
 	const encryptedDataDiv = encrypted && encryptedData
 		? `<script type="application/json" id="encrypted-data">${escapeJson(encryptedData)}</script>`
+		: '';
+
+	const graphDataDiv = graph
+		? `<script type="application/json" id="graph-data">${escapeJson(JSON.stringify(graph))}</script>`
 		: '';
 
 	const decryptionScript = encrypted ? DECRYPTION_SCRIPT : '';
@@ -101,21 +108,27 @@ ${urlMeta}
 	--border: #e5e5e5;
 	--code-bg: #f5f5f5;
 	--card-bg: #fff;
+	--pre-bg: #f5f6f4;
+	--pre-fg: #24292e;
 }
 [data-theme="dark"] {${DARK_VARS}}
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) {${DARK_VARS}}
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html { color-scheme: light dark; }
+html { color-scheme: light dark; scroll-behavior: smooth; }
 body {
 	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif;
 	color: var(--text); background: var(--bg); line-height: 1.7;
 	font-size: 16px; -webkit-font-smoothing: antialiased;
 	transition: background-color .2s, color .2s;
 }
-.theme-toggle {
+
+.side-tools {
 	position: fixed; top: 1rem; right: 1rem; z-index: 100;
+	display: flex; flex-direction: column; gap: 0.5rem;
+}
+.tool-btn {
 	width: 36px; height: 36px;
 	background: var(--card-bg);
 	border: 1px solid var(--border);
@@ -123,10 +136,49 @@ body {
 	cursor: pointer;
 	display: grid; place-items: center;
 	color: var(--text);
-	transition: border-color .15s, background .15s;
+	transition: border-color .15s, background .15s, color .15s;
 }
-.theme-toggle:hover { border-color: var(--accent); }
-.theme-toggle svg { width: 16px; height: 16px; }
+.tool-btn:hover { border-color: var(--accent); }
+.tool-btn.active { border-color: var(--accent); color: var(--accent); }
+.tool-btn svg { width: 16px; height: 16px; }
+
+.side-panel {
+	position: fixed; top: 1rem; right: 4rem; z-index: 99;
+	width: 280px; max-height: calc(100vh - 2rem);
+	overflow-y: auto;
+	background: var(--card-bg);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	padding: 1rem 1.1rem;
+	display: none;
+	box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+.side-panel.open { display: block; }
+.side-panel h3 {
+	font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+	letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.6rem;
+}
+#tocList { display: flex; flex-direction: column; gap: 2px; }
+#tocList a {
+	color: var(--text); text-decoration: none; font-size: 0.82rem;
+	line-height: 1.4; padding: 0.25rem 0.5rem; border-radius: 6px;
+	display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#tocList a:hover { background: var(--code-bg); color: var(--accent); }
+#tocList a.toc-h2 { padding-left: 1.1rem; }
+#tocList a.toc-h3 { padding-left: 1.7rem; font-size: 0.78rem; color: var(--muted); }
+#tocList a.toc-h4 { padding-left: 2.3rem; font-size: 0.78rem; color: var(--muted); }
+#graphCanvas { width: 100%; display: block; }
+.graph-legend {
+	display: flex; gap: 0.9rem; margin-top: 0.5rem;
+	font-size: 0.7rem; color: var(--muted);
+}
+.graph-legend span::before {
+	content: ''; display: inline-block; width: 8px; height: 8px;
+	border-radius: 50%; margin-right: 4px;
+}
+.graph-legend .lg-link::before { background: var(--accent); }
+.graph-legend .lg-tag::before { background: #E985A2; }
 
 main {
 	max-width: var(--max); margin: 0 auto; padding: 4rem 1.5rem 3rem;
@@ -136,7 +188,7 @@ main {
 #note-content h1, #note-content h2, #note-content h3,
 #note-content h4, #note-content h5, #note-content h6 {
 	font-weight: 700; letter-spacing: -0.02em; line-height: 1.3;
-	margin: 2rem 0 0.75rem;
+	margin: 2rem 0 0.75rem; scroll-margin-top: 1.5rem;
 }
 #note-content h1 { font-size: 1.85rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--text); }
 #note-content h2 { font-size: 1.4rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
@@ -155,11 +207,12 @@ main {
 	font-size: 0.88em; font-family: 'SF Mono', 'Menlo', monospace;
 }
 #note-content pre {
-	background: #1a1a1a; color: #e0e0e0; padding: 1rem; border-radius: 8px;
+	background: var(--pre-bg); color: var(--pre-fg);
+	border: 1px solid var(--border);
+	padding: 1rem; border-radius: 8px;
 	overflow-x: auto; font-size: 0.85rem; line-height: 1.6;
 	font-family: 'SF Mono', 'Menlo', monospace; margin: 1rem 0;
 }
-[data-theme="dark"] #note-content pre { background: #0a0d0b; border: 1px solid var(--border); }
 #note-content pre code { background: transparent; padding: 0; font-size: 1em; }
 #note-content blockquote {
 	border-left: 3px solid var(--accent); padding: 0.5rem 1rem;
@@ -201,14 +254,30 @@ main {
 	border: 1px solid #c62828; margin: 2rem 0; text-align: center;
 }
 [data-theme="dark"] .decrypt-error { background: #4a1a24; color: #ff8899; border-color: #ff8899; }
+
+@media (max-width: 720px) {
+	.side-panel { right: 1rem; top: 4rem; width: min(280px, calc(100vw - 2rem)); }
+}
 </style>
 ${cssLink}
 </head>
 <body>
 
-<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
-	<svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
-</button>
+<div class="side-tools">
+	<button class="tool-btn" id="themeToggle" aria-label="Toggle theme">
+		<svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+	</button>
+	<button class="tool-btn" id="tocToggle" aria-label="Table of contents" hidden>
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+	</button>
+	<button class="tool-btn" id="graphToggle" aria-label="Local graph" hidden>
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M10.8 6.9 6.2 16m7-9.1 4.6 9.1M7.2 18h9.6"/></svg>
+	</button>
+</div>
+
+<aside class="side-panel" id="tocPanel"><h3>Contents</h3><nav id="tocList"></nav></aside>
+<aside class="side-panel" id="graphPanel"><h3>Local Graph</h3><canvas id="graphCanvas"></canvas>
+<div class="graph-legend"><span class="lg-link">Linked notes</span><span class="lg-tag">Tags</span></div></aside>
 
 <main>
 	${bodyContent}
@@ -220,6 +289,7 @@ ${cssLink}
 </footer>
 
 ${encryptedDataDiv}
+${graphDataDiv}
 ${decryptionScript}
 
 <script>
@@ -240,6 +310,8 @@ ${decryptionScript}
 	paint(document.documentElement.dataset.theme || 'light');
 })();
 </script>
+
+${PANELS_SCRIPT}
 </body>
 </html>`;
 }
@@ -289,10 +361,138 @@ const DECRYPTION_SCRIPT = `
 		const target = document.getElementById('note-content');
 		target.innerHTML = data.content;
 		if (data.title) document.title = data.title;
+		document.dispatchEvent(new Event('cmds-content-ready'));
 	} catch (err) {
 		console.error('Decryption failed:', err);
 		const target = document.getElementById('note-content');
 		if (target) target.innerHTML = '<div class="decrypt-error">Failed to decrypt note. Check the URL fragment.</div>';
+	}
+})();
+</script>
+`;
+
+// TOC + local-graph side panels. Runs after content is in the DOM
+// (immediately for plain shares; after 'cmds-content-ready' for encrypted ones).
+const PANELS_SCRIPT = `
+<script>
+(function() {
+	var PANELS = { toc: 'tocPanel', graph: 'graphPanel' };
+
+	function setPanel(name, open) {
+		Object.keys(PANELS).forEach(function(k) {
+			var on = k === name ? open : false;
+			document.getElementById(PANELS[k]).classList.toggle('open', on);
+			document.getElementById(k + 'Toggle').classList.toggle('active', on);
+			try { localStorage.setItem('cmds-panel-' + k, on ? '1' : '0'); } catch(e) {}
+		});
+	}
+	function wireToggle(name) {
+		document.getElementById(name + 'Toggle').addEventListener('click', function() {
+			var isOpen = document.getElementById(PANELS[name]).classList.contains('open');
+			setPanel(name, !isOpen);
+		});
+	}
+
+	function buildToc() {
+		var article = document.getElementById('note-content');
+		var heads = article.querySelectorAll('h1, h2, h3, h4');
+		if (heads.length < 2) return false;
+		var list = document.getElementById('tocList');
+		list.innerHTML = '';
+		var used = {};
+		heads.forEach(function(h) {
+			var text = (h.textContent || '').trim();
+			if (!text) return;
+			var slug = text.toLowerCase().replace(/[^0-9a-z\\uAC00-\\uD7A3\\u3131-\\u318E\\s-]/g, '').replace(/\\s+/g, '-') || 'section';
+			if (used[slug] != null) { used[slug]++; slug = slug + '-' + used[slug]; } else { used[slug] = 0; }
+			if (!h.id) h.id = slug;
+			var a = document.createElement('a');
+			a.href = '#' + h.id;
+			a.textContent = text;
+			a.className = 'toc-' + h.tagName.toLowerCase();
+			a.title = text;
+			list.appendChild(a);
+		});
+		return list.children.length >= 2;
+	}
+
+	function drawGraph() {
+		var canvas = document.getElementById('graphCanvas');
+		var dataEl = document.getElementById('graph-data');
+		if (!dataEl) return false;
+		var g;
+		try { g = JSON.parse(dataEl.textContent); } catch(e) { return false; }
+		var nodes = (g.links || []).map(function(n) { return { label: n, type: 'link' }; })
+			.concat((g.tags || []).map(function(n) { return { label: '#' + n, type: 'tag' }; }));
+		if (nodes.length === 0) return false;
+
+		var css = getComputedStyle(document.documentElement);
+		var W = 246, H = Math.max(220, Math.min(340, 140 + nodes.length * 12));
+		var dpr = window.devicePixelRatio || 1;
+		canvas.width = W * dpr; canvas.height = H * dpr;
+		canvas.style.height = H + 'px';
+		var ctx = canvas.getContext('2d');
+		ctx.scale(dpr, dpr);
+		ctx.clearRect(0, 0, W, H);
+
+		var accent = css.getPropertyValue('--accent').trim();
+		var muted = css.getPropertyValue('--muted').trim();
+		var text = css.getPropertyValue('--text').trim();
+		var border = css.getPropertyValue('--border').trim();
+		var cx = W / 2, cy = H / 2;
+		var r = Math.min(W, H) / 2 - 34;
+
+		ctx.font = '9px -apple-system, sans-serif';
+		nodes.forEach(function(n, i) {
+			var a = (Math.PI * 2 * i) / nodes.length - Math.PI / 2;
+			n.x = cx + r * Math.cos(a);
+			n.y = cy + r * Math.sin(a);
+			ctx.strokeStyle = border;
+			ctx.lineWidth = 1;
+			ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(n.x, n.y); ctx.stroke();
+		});
+		nodes.forEach(function(n) {
+			ctx.fillStyle = n.type === 'tag' ? '#E985A2' : accent;
+			ctx.beginPath(); ctx.arc(n.x, n.y, 4, 0, Math.PI * 2); ctx.fill();
+			ctx.fillStyle = muted;
+			var label = n.label.length > 14 ? n.label.slice(0, 13) + '…' : n.label;
+			var tw = ctx.measureText(label).width;
+			var lx = n.x < cx - 4 ? n.x - tw - 7 : (n.x > cx + 4 ? n.x + 7 : n.x - tw / 2);
+			var ly = n.y < cy ? n.y - 8 : n.y + 14;
+			ctx.fillText(label, lx, ly);
+		});
+		ctx.fillStyle = accent;
+		ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
+		ctx.fillStyle = text;
+		ctx.font = 'bold 10px -apple-system, sans-serif';
+		var t = (g.title || '').length > 16 ? g.title.slice(0, 15) + '…' : (g.title || '');
+		ctx.fillText(t, cx - ctx.measureText(t).width / 2, cy + 22);
+		return true;
+	}
+
+	function init() {
+		if (buildToc()) {
+			var tocBtn = document.getElementById('tocToggle');
+			tocBtn.hidden = false;
+			wireToggle('toc');
+		}
+		if (drawGraph()) {
+			var gBtn = document.getElementById('graphToggle');
+			gBtn.hidden = false;
+			wireToggle('graph');
+			// redraw with the new palette when the theme flips
+			new MutationObserver(drawGraph).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+		}
+		try {
+			if (localStorage.getItem('cmds-panel-toc') === '1' && !document.getElementById('tocToggle').hidden) setPanel('toc', true);
+			else if (localStorage.getItem('cmds-panel-graph') === '1' && !document.getElementById('graphToggle').hidden) setPanel('graph', true);
+		} catch(e) {}
+	}
+
+	if (document.getElementById('encrypted-data')) {
+		document.addEventListener('cmds-content-ready', init, { once: true });
+	} else {
+		init();
 	}
 })();
 </script>

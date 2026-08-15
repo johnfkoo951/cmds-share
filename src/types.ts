@@ -188,6 +188,12 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	debugMode: false,
 };
 
+export interface NoteGraphData {
+	title: string;
+	links: string[];
+	tags: string[];
+}
+
 export interface NoteTemplateData {
 	title: string;
 	content: string;
@@ -198,6 +204,7 @@ export interface NoteTemplateData {
 	encrypted: boolean;
 	encryptedData?: string;
 	description?: string;
+	graph?: NoteGraphData;
 }
 
 export interface CMSStats {

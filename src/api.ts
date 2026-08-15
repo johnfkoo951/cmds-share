@@ -1,4 +1,4 @@
-import { TFile, MarkdownView, App, Component, MarkdownRenderer } from 'obsidian';
+import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags } from 'obsidian';
 import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType } from './types';
 import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
@@ -107,6 +107,8 @@ export class ShareApiService {
 				encrypted: shouldEncrypt,
 				encryptedData: shouldEncrypt ? finalEncryptedData : undefined,
 				description: shouldEncrypt ? undefined : description,
+				// link/tag names would leak metadata on encrypted shares — skip there
+				graph: shouldEncrypt ? undefined : this.collectGraphData(file, title, app),
 			});
 
 			const meta: ShareMeta = {
@@ -282,6 +284,21 @@ export class ShareApiService {
 		}
 	}
 
+	/**
+	 * Strip decorations other plugins inject into rendered markdown — SNW
+	 * reference counters, copy buttons, frontmatter tables. Markdown
+	 * post-processors run inside MarkdownRenderer too, so BOTH content
+	 * paths need this.
+	 */
+	private cleanupRenderedDom(root: HTMLElement): void {
+		if (this.settings.removeBacklinks) {
+			root.querySelectorAll('.backlinks, .embedded-backlinks').forEach(el => el.remove());
+		}
+		root.querySelectorAll(
+			'[class*="snw-"], [data-snw-type], button, .metadata-container, .frontmatter, .frontmatter-container, .mod-frontmatter'
+		).forEach(el => el.remove());
+	}
+
 	private async extractRenderedContent(app: App, file: TFile): Promise<string | null> {
 		try {
 			const view = app.workspace.getActiveViewOfType(MarkdownView);
@@ -297,9 +314,7 @@ export class ShareApiService {
 
 			const clone = previewEl.cloneNode(true) as HTMLElement;
 
-			if (this.settings.removeBacklinks) {
-				clone.querySelectorAll('.backlinks').forEach(el => el.remove());
-			}
+			this.cleanupRenderedDom(clone);
 
 			clone.querySelectorAll('[data-callout]').forEach(el => {
 				const calloutType = el.getAttribute('data-callout');
@@ -346,6 +361,7 @@ export class ShareApiService {
 		component.load();
 		try {
 			await MarkdownRenderer.render(app, text, el, file.path, component);
+			this.cleanupRenderedDom(el);
 			el.querySelectorAll('[data-callout]').forEach(node => {
 				const calloutType = node.getAttribute('data-callout');
 				if (calloutType) {
@@ -356,6 +372,26 @@ export class ShareApiService {
 		} finally {
 			component.unload();
 		}
+	}
+
+	/** Outgoing wiki-links + tags for the share page's local-graph panel. */
+	private collectGraphData(file: TFile, title: string, app: App): { title: string; links: string[]; tags: string[] } | undefined {
+		const cache = app.metadataCache.getFileCache(file);
+		if (!cache) return undefined;
+
+		const links = [...new Set(
+			(cache.links || [])
+				.map(l => l.link.split('#')[0].split('|')[0].trim())
+				.filter(Boolean)
+				.map(l => l.split('/').pop() || l)
+		)].slice(0, 20);
+
+		const tags = [...new Set(
+			(getAllTags(cache) || []).map(t => t.replace(/^#/, ''))
+		)].slice(0, 15);
+
+		if (links.length === 0 && tags.length === 0) return undefined;
+		return { title, links, tags };
 	}
 
 	private extractDescription(content: string): string {
