@@ -146,6 +146,13 @@ export default class CMDSSharePlugin extends Plugin {
 				saved.providers?.[key]
 			);
 		}
+		// old data.json files carry empty-string URLs for the cloud slot — treat as unset
+		if (!this.settings.providers.cloud.apiUrl) {
+			this.settings.providers.cloud.apiUrl = DEFAULT_SETTINGS.providers.cloud.apiUrl;
+		}
+		if (!this.settings.providers.cloud.publicUrl) {
+			this.settings.providers.cloud.publicUrl = this.settings.providers.cloud.apiUrl;
+		}
 
 		let dirty = false;
 		if (!this.settings.uid) {
