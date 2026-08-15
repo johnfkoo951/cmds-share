@@ -1,6 +1,7 @@
 /**
- * AES-256-GCM encryption for note content
- * Based on share-note implementation with improvements
+ * AES-256-GCM encryption for note content.
+ * Each share generates a fresh random 256-bit key, so the per-chunk
+ * counter IV never repeats under the same key.
  */
 
 export interface EncryptedData {
@@ -8,107 +9,47 @@ export interface EncryptedData {
 	key: string;
 }
 
-const CHUNK_SIZE = 2000;
-const PBKDF2_ITERATIONS = 100000;
+// Chunk by BYTES (not chars): plaintext is UTF-8 encoded first, then sliced,
+// so multi-byte Korean text can't blow past the intended chunk size.
+// Decryption must concatenate decrypted bytes before decoding (see template.ts).
+const CHUNK_BYTES = 65536;
 
-/**
- * Generate a cryptographic hash
- */
 export async function sha256(data: string): Promise<string> {
-	const encoder = new TextEncoder();
-	const dataBuffer = encoder.encode(data);
+	const dataBuffer = new TextEncoder().encode(data);
 	const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
 	return arrayBufferToHex(hashBuffer);
 }
 
 /**
- * Generate a short hash (for filenames, IDs)
- */
-export async function shortHash(data: string): Promise<string> {
-	const hash = await sha256(data);
-	return hash.slice(0, 8);
-}
-
-/**
- * SHA-1 hash for file deduplication
+ * SHA-1 hash for content-addressed asset filenames
  */
 export async function sha1(data: string | ArrayBuffer): Promise<string> {
-	let buffer: ArrayBuffer;
-	if (typeof data === 'string') {
-		buffer = new TextEncoder().encode(data);
-	} else {
-		buffer = data;
-	}
+	const buffer = typeof data === 'string' ? new TextEncoder().encode(data).buffer : data;
 	const hashBuffer = await crypto.subtle.digest('SHA-1', buffer);
 	return arrayBufferToHex(hashBuffer);
 }
 
-/**
- * Encrypt a string with AES-256-GCM
- */
-export async function encryptString(plaintext: string, existingKey?: string): Promise<EncryptedData> {
-	let masterKey: ArrayBuffer;
-	
-	if (existingKey) {
-		masterKey = base64ToArrayBuffer(existingKey);
-	} else {
-		// Generate a new random master key
-		const randomBytes = crypto.getRandomValues(new Uint8Array(64));
-		masterKey = await deriveKey(randomBytes.buffer);
-	}
-	
-	const aesKey = await getAesGcmKey(masterKey);
-	const ciphertext: string[] = [];
-	const length = plaintext.length;
-	let index = 0;
-	
-	while (index * CHUNK_SIZE < length) {
-		const chunk = plaintext.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE);
-		const encodedChunk = new TextEncoder().encode(chunk);
-		
-		const encryptedChunk = await crypto.subtle.encrypt(
-			{
-				name: 'AES-GCM',
-				iv: indexToIv(index),
-			},
-			aesKey,
-			encodedChunk
-		);
-		
-		ciphertext.push(arrayBufferToBase64(encryptedChunk));
-		index++;
-	}
-	
-	return {
-		ciphertext,
-		key: masterKeyToString(masterKey).slice(0, 43),
-	};
-}
+export async function encryptString(plaintext: string): Promise<EncryptedData> {
+	const masterKey = crypto.getRandomValues(new Uint8Array(32)).buffer;
+	const aesKey = await crypto.subtle.importKey('raw', masterKey, { name: 'AES-GCM' }, false, ['encrypt']);
 
-/**
- * Decrypt encrypted data
- */
-export async function decryptString(encryptedData: EncryptedData): Promise<string> {
-	const masterKey = base64ToArrayBuffer(encryptedData.key);
-	const aesKey = await getAesGcmKey(masterKey);
-	const decryptedChunks: string[] = [];
-	
-	for (let index = 0; index < encryptedData.ciphertext.length; index++) {
-		const chunk = base64ToArrayBuffer(encryptedData.ciphertext[index]);
-		
-		const decryptedChunk = await crypto.subtle.decrypt(
-			{
-				name: 'AES-GCM',
-				iv: indexToIv(index),
-			},
+	const encoded = new TextEncoder().encode(plaintext);
+	const ciphertext: string[] = [];
+
+	for (let index = 0; index * CHUNK_BYTES < encoded.length; index++) {
+		const chunk = encoded.slice(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES);
+		const encryptedChunk = await crypto.subtle.encrypt(
+			{ name: 'AES-GCM', iv: indexToIv(index) },
 			aesKey,
 			chunk
 		);
-		
-		decryptedChunks.push(new TextDecoder().decode(decryptedChunk));
+		ciphertext.push(arrayBufferToBase64(encryptedChunk));
 	}
-	
-	return decryptedChunks.join('');
+
+	return {
+		ciphertext,
+		key: base64Url(masterKey),
+	};
 }
 
 /**
@@ -127,42 +68,9 @@ export function generateShortId(length = 8): string {
 // Internal Helpers
 // ============================================================================
 
-async function deriveKey(input: ArrayBuffer): Promise<ArrayBuffer> {
-	const salt = new TextEncoder().encode('cmds-share-salt');
-	const keyMaterial = await crypto.subtle.importKey(
-		'raw',
-		input,
-		'PBKDF2',
-		false,
-		['deriveBits']
-	);
-	
-	return await crypto.subtle.deriveBits(
-		{
-			name: 'PBKDF2',
-			salt,
-			iterations: PBKDF2_ITERATIONS,
-			hash: 'SHA-256',
-		},
-		keyMaterial,
-		256
-	);
-}
-
-async function getAesGcmKey(masterKey: ArrayBuffer): Promise<CryptoKey> {
-	return await crypto.subtle.importKey(
-		'raw',
-		masterKey,
-		{ name: 'AES-GCM' },
-		false,
-		['encrypt', 'decrypt']
-	);
-}
-
 function indexToIv(index: number): Uint8Array {
 	const iv = new Uint8Array(12);
-	const view = new DataView(iv.buffer);
-	view.setUint32(0, index, true);
+	new DataView(iv.buffer).setUint32(0, index, true);
 	return iv;
 }
 
@@ -175,15 +83,6 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 	return btoa(binary);
 }
 
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-	const binary = atob(base64);
-	const bytes = new Uint8Array(binary.length);
-	for (let i = 0; i < binary.length; i++) {
-		bytes[i] = binary.charCodeAt(i);
-	}
-	return bytes.buffer;
-}
-
 function arrayBufferToHex(buffer: ArrayBuffer): string {
 	const bytes = new Uint8Array(buffer);
 	return Array.from(bytes)
@@ -191,6 +90,7 @@ function arrayBufferToHex(buffer: ArrayBuffer): string {
 		.join('');
 }
 
-function masterKeyToString(key: ArrayBuffer): string {
-	return arrayBufferToBase64(key).replace(/\+/g, '-').replace(/\//g, '_');
+/** URL-fragment-safe base64 (no padding). The share page reverses this before atob. */
+function base64Url(key: ArrayBuffer): string {
+	return arrayBufferToBase64(key).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

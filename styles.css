@@ -245,3 +245,14 @@
 	margin-top: 0;
 	margin-bottom: 8px;
 }
+
+.cmds-share-cms-status-revoked {
+	background: rgba(220, 53, 69, 0.15);
+	color: var(--text-error);
+}
+
+.cmds-share-cms-orphans {
+	margin-top: 24px;
+	padding-top: 12px;
+	border-top: 1px solid var(--background-modifier-border);
+}

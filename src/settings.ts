@@ -21,22 +21,6 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('h2', { text: 'CMDS Share Settings' });
 
-		// Share Mode
-		containerEl.createEl('h3', { text: 'Share Mode' });
-
-		new Setting(containerEl)
-			.setName('Mode')
-			.setDesc('Quick = anonymous one-click share. Connected = signed-in, all your shares aggregated across vaults.')
-			.addDropdown(dropdown => dropdown
-				.addOption('quick', 'Quick (anonymous)')
-				.addOption('connected', 'Connected (signed-in)')
-				.setValue(this.plugin.settings.shareMode)
-				.onChange(async (value) => {
-					this.plugin.settings.shareMode = value as 'quick' | 'connected';
-					await this.plugin.saveSettings();
-					this.display();
-				}));
-
 		// Vault Identity
 		containerEl.createEl('h3', { text: 'Vault Identity' });
 
@@ -57,69 +41,6 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 			.addText(text => text
 				.setValue(this.plugin.settings.vaultId)
 				.setDisabled(true));
-
-		// Connected Mode — Account
-		if (this.plugin.settings.shareMode === 'connected') {
-			containerEl.createEl('h3', { text: 'Account' });
-
-			const auth = this.plugin.settings.auth;
-			if (auth) {
-				new Setting(containerEl)
-					.setName('Signed in as')
-					.setDesc(auth.email)
-					.addButton(btn => btn
-						.setButtonText('Sign out')
-						.setWarning()
-						.onClick(async () => {
-							this.plugin.settings.auth = undefined;
-							await this.plugin.saveSettings();
-							this.display();
-						}));
-			} else {
-				new Setting(containerEl)
-					.setName('Sign in')
-					.setDesc('Connect your CMDS account to aggregate shares across vaults.')
-					.addButton(btn => btn
-						.setButtonText('Sign in with email')
-						.setCta()
-						.onClick(() => {
-							new Notice('Magic link sign-in: configure Supabase auth URL below first.');
-						}));
-			}
-
-			new Setting(containerEl)
-				.setName('Supabase auth URL')
-				.setDesc('Your Supabase project URL (used for auth + metadata index)')
-				.addText(text => text
-					.setPlaceholder('https://xxx.supabase.co')
-					.setValue(this.plugin.settings.supabaseAuthUrl)
-					.onChange(async (value) => {
-						this.plugin.settings.supabaseAuthUrl = value.trim();
-						await this.plugin.saveSettings();
-					}));
-
-			new Setting(containerEl)
-				.setName('Supabase anon key')
-				.setDesc('Anon (public) key for auth')
-				.addText(text => text
-					.setPlaceholder('eyJ...')
-					.setValue(this.plugin.settings.supabaseAnonKey)
-					.onChange(async (value) => {
-						this.plugin.settings.supabaseAnonKey = value.trim();
-						await this.plugin.saveSettings();
-					}));
-
-			new Setting(containerEl)
-				.setName('Web CMS URL')
-				.setDesc('External dashboard for browsing all your shares')
-				.addText(text => text
-					.setPlaceholder('https://share.cmdspace.work')
-					.setValue(this.plugin.settings.webCmsUrl)
-					.onChange(async (value) => {
-						this.plugin.settings.webCmsUrl = value.trim();
-						await this.plugin.saveSettings();
-					}));
-		}
 
 		// Provider Selection
 		containerEl.createEl('h3', { text: 'Server Provider' });
@@ -337,12 +258,12 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderCloudSettings(containerEl: HTMLElement): void {
-		containerEl.createEl('h4', { text: 'Cloud Service Settings' });
+		containerEl.createEl('h4', { text: 'CMDSPACE Settings' });
 
 		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description' });
 		infoEl.style.marginBottom = '12px';
 		infoEl.innerHTML = `
-			<p style="margin: 0 0 8px 0;">Configure your custom cloud server for hosting shared notes.</p>
+			<p style="margin: 0 0 8px 0;">CMDSPACE governance server — server-side share registry with view counts, expiry, and revocation. Paste your API token and enable.</p>
 		`;
 
 		new Setting(containerEl)
@@ -355,35 +276,29 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('API URL')
-			.setDesc('Server API endpoint')
+			.setName('API token')
+			.setDesc('Token issued for this device (x-cmds-token)')
+			.addText(text => {
+				text.inputEl.type = 'password';
+				text
+					.setPlaceholder('your-token')
+					.setValue(this.plugin.settings.providers.cloud.apiKey)
+					.onChange(async (value) => {
+						this.plugin.settings.providers.cloud.apiKey = value.trim();
+						await this.plugin.saveSettings();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Server URL')
+			.setDesc('Governance server endpoint (also the public share URL base)')
 			.addText(text => text
-				.setPlaceholder('https://api.example.com')
+				.setPlaceholder('https://share.cmdspace.work')
 				.setValue(this.plugin.settings.providers.cloud.apiUrl)
 				.onChange(async (value) => {
-					this.plugin.settings.providers.cloud.apiUrl = value.trim();
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('API Key')
-			.setDesc('Authentication key for API')
-			.addText(text => text
-				.setPlaceholder('your-api-key')
-				.setValue(this.plugin.settings.providers.cloud.apiKey)
-				.onChange(async (value) => {
-					this.plugin.settings.providers.cloud.apiKey = value.trim();
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Public URL')
-			.setDesc('Base URL for accessing shared notes')
-			.addText(text => text
-				.setPlaceholder('https://notes.example.com')
-				.setValue(this.plugin.settings.providers.cloud.publicUrl)
-				.onChange(async (value) => {
-					this.plugin.settings.providers.cloud.publicUrl = value.trim();
+					const url = value.trim().replace(/\/$/, '') || 'https://share.cmdspace.work';
+					this.plugin.settings.providers.cloud.apiUrl = url;
+					this.plugin.settings.providers.cloud.publicUrl = url;
 					await this.plugin.saveSettings();
 				}));
 

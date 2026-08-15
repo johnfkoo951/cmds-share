@@ -5,7 +5,7 @@ import {
 	FuzzySuggestModal,
 	TFile,
 } from 'obsidian';
-import { CMDSShareSettings, SharedNote, ServerProviderType, PROVIDER_DISPLAY_NAMES } from './types';
+import { CMDSShareSettings, SharedNote, PROVIDER_DISPLAY_NAMES } from './types';
 
 export interface ShareOptionsResponse {
 	action: 'share' | 'cancel';
@@ -188,29 +188,5 @@ export class ConfirmDeleteModal extends Modal {
 		return new Promise(resolve => {
 			this.resolvePromise = resolve;
 		});
-	}
-}
-
-export class ProviderSelectorModal extends FuzzySuggestModal<ServerProviderType> {
-	private providers: ServerProviderType[];
-	private onSelect: (provider: ServerProviderType) => void;
-
-	constructor(app: App, providers: ServerProviderType[], onSelect: (provider: ServerProviderType) => void) {
-		super(app);
-		this.providers = providers;
-		this.onSelect = onSelect;
-		this.setPlaceholder('Select server provider...');
-	}
-
-	getItems(): ServerProviderType[] {
-		return this.providers;
-	}
-
-	getItemText(provider: ServerProviderType): string {
-		return PROVIDER_DISPLAY_NAMES[provider];
-	}
-
-	onChooseItem(provider: ServerProviderType): void {
-		this.onSelect(provider);
 	}
 }

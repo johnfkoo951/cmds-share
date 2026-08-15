@@ -12,7 +12,6 @@ export interface SharedNote {
 	title: string;
 	status: ShareStatus;
 	encrypted: boolean;
-	encryptionKey?: string;
 	provider: ServerProviderType;
 	vaultId: string;
 	vaultName: string;
@@ -20,14 +19,14 @@ export interface SharedNote {
 	updatedAt: number;
 	expiresAt?: number;
 	viewCount?: number;
-	cssHash?: string;
-	assetsHash?: string[];
+	revoked?: boolean;
 }
 
 export interface ShareResult {
 	success: boolean;
 	url?: string;
 	shortId?: string;
+	encrypted?: boolean;
 	error?: string;
 }
 
@@ -89,32 +88,17 @@ export interface ConvexProviderConfig extends BaseProviderConfig {
 	publicUrl: string;
 }
 
-export type AnyProviderConfig = 
-	| CloudProviderConfig 
-	| SynologyProviderConfig 
-	| GitHubProviderConfig 
-	| SupabaseProviderConfig 
+export type AnyProviderConfig =
+	| CloudProviderConfig
+	| SynologyProviderConfig
+	| GitHubProviderConfig
+	| SupabaseProviderConfig
 	| ConvexProviderConfig;
-
-export type ShareMode = 'quick' | 'connected';
-
-export interface AuthSession {
-	userId: string;
-	email: string;
-	accessToken: string;
-	refreshToken: string;
-	expiresAt: number;
-}
 
 export interface CMDSShareSettings {
 	uid: string;
 	vaultId: string;
 	vaultName: string;
-	shareMode: ShareMode;
-	auth?: AuthSession;
-	supabaseAuthUrl: string;
-	supabaseAnonKey: string;
-	webCmsUrl: string;
 	activeProvider: ServerProviderType;
 	encryptionMode: EncryptionMode;
 	defaultExpiration: string;
@@ -142,10 +126,6 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	uid: '',
 	vaultId: '',
 	vaultName: '',
-	shareMode: 'quick',
-	supabaseAuthUrl: '',
-	supabaseAnonKey: '',
-	webCmsUrl: 'https://share.cmdspace.work',
 	activeProvider: 'cloud',
 	encryptionMode: 'auto',
 	defaultExpiration: '',
@@ -161,10 +141,10 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 		cloud: {
 			type: 'cloud',
 			enabled: false,
-			name: 'Cloud Service',
-			apiUrl: '',
+			name: 'CMDSPACE',
+			apiUrl: 'https://share.cmdspace.work',
 			apiKey: '',
-			publicUrl: '',
+			publicUrl: 'https://share.cmdspace.work',
 		},
 		synology: {
 			type: 'synology',
@@ -208,67 +188,16 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	debugMode: false,
 };
 
-export interface ApiResponse<T> {
-	success: boolean;
-	data?: T;
-	error?: string;
-}
-
-export interface FileCheckRequest {
-	files: Array<{
-		hash: string;
-		filetype: string;
-		byteLength: number;
-	}>;
-}
-
-export interface FileCheckResponse {
-	files: Array<{
-		hash: string;
-		filetype: string;
-		url?: string;
-		needsUpload: boolean;
-	}>;
-}
-
-export interface NoteUploadRequest {
-	shortId?: string;
-	content: string;
-	title: string;
-	encrypted: boolean;
-	cssUrl?: string;
-	expiresAt?: number;
-	metadata?: Record<string, unknown>;
-}
-
-export interface NoteUploadResponse {
-	shortId: string;
-	url: string;
-}
-
 export interface NoteTemplateData {
 	title: string;
 	content: string;
+	url?: string;
+	lang: 'ko' | 'en';
 	cssUrl?: string;
 	noteWidth: string;
 	encrypted: boolean;
 	encryptedData?: string;
 	description?: string;
-	theme?: 'light' | 'dark' | 'auto';
-}
-
-export interface CMSNoteEntry {
-	id: string;
-	filePath: string;
-	title: string;
-	url: string;
-	status: ShareStatus;
-	encrypted: boolean;
-	provider: ServerProviderType;
-	createdAt: number;
-	updatedAt: number;
-	expiresAt?: number;
-	viewCount?: number;
 }
 
 export interface CMSStats {
@@ -282,7 +211,7 @@ export interface CMSStats {
 export const SUPPORTED_PROVIDERS = ['cloud', 'synology', 'github', 'supabase', 'convex'] as const;
 
 export const PROVIDER_DISPLAY_NAMES: Record<ServerProviderType, string> = {
-	cloud: 'Cloud Service',
+	cloud: 'CMDSPACE',
 	synology: 'Synology NAS',
 	github: 'GitHub Pages',
 	supabase: 'Supabase',

@@ -1,14 +1,19 @@
-import { TFile, MarkdownView, Notice, App, normalizePath } from 'obsidian';
+import { TFile, MarkdownView, App } from 'obsidian';
 import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType } from './types';
-import { createServerProvider, ServerProvider } from './providers';
+import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
-import { generateNoteHtml, generateDefaultCss } from './template';
+import { generateNoteHtml } from './template';
 
 const ASSET_MIME: Record<string, string> = {
 	png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
 	gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
 	avif: 'image/avif', bmp: 'image/bmp',
 };
+
+export interface ShareOptions {
+	encrypted?: boolean;
+	expiresAt?: number;
+}
 
 export class ShareApiService {
 	private settings: CMDSShareSettings;
@@ -28,7 +33,7 @@ export class ShareApiService {
 		const providerType = this.settings.activeProvider;
 		const config = this.settings.providers[providerType];
 		if (config?.enabled) {
-			this.provider = createServerProvider(config, this.settings.uid);
+			this.provider = createServerProvider(config);
 		} else {
 			this.provider = null;
 		}
@@ -40,6 +45,12 @@ export class ShareApiService {
 
 	getActiveProviderType(): ServerProviderType {
 		return this.settings.activeProvider;
+	}
+
+	/** Provider instance for a specific type (e.g. deleting a note shared elsewhere). */
+	getProviderFor(type: ServerProviderType): ServerProvider | null {
+		const config = this.settings.providers[type];
+		return config?.enabled ? createServerProvider(config) : null;
 	}
 
 	async testConnection(): Promise<boolean> {
@@ -54,7 +65,8 @@ export class ShareApiService {
 		content: string,
 		title: string,
 		app: App,
-		reuseShortId?: string
+		reuseShortId?: string,
+		options: ShareOptions = {}
 	): Promise<ShareResult> {
 		if (!this.provider) {
 			return { success: false, error: 'No server provider configured' };
@@ -62,14 +74,16 @@ export class ShareApiService {
 
 		try {
 			const shortId = reuseShortId || generateShortId(8);
-			const shouldEncrypt = this.shouldEncrypt(file, app);
+			// The share modal's toggle wins; settings/frontmatter are the fallback.
+			const shouldEncrypt = options.encrypted ?? this.shouldEncrypt(file, app);
 
-			let extractedContent = await this.extractRenderedContent(app);
+			const extractedContent = await this.extractRenderedContent(app);
 			let htmlContent = extractedContent || this.markdownToHtml(content);
 
-			if (!shouldEncrypt) {
-				htmlContent = await this.uploadInlineAssets(htmlContent, file, app);
-			}
+			// Assets are uploaded before encryption so encrypted notes keep working
+			// images. Asset URLs are content-hashed and unlisted, but they are NOT
+			// covered by the E2E encryption.
+			htmlContent = await this.uploadInlineAssets(htmlContent, file, app);
 
 			let finalEncryptedData: string | undefined;
 			let encryptionKey: string | undefined;
@@ -80,10 +94,14 @@ export class ShareApiService {
 			}
 
 			const description = this.extractDescription(content);
+			const filename = `${shortId}.html`;
+			const publicUrl = this.provider.getPublicUrl(filename);
 
 			const html = generateNoteHtml({
 				title,
 				content: shouldEncrypt ? '' : htmlContent,
+				url: publicUrl,
+				lang: detectLang(shouldEncrypt ? title : `${title} ${content.slice(0, 2000)}`),
 				cssUrl: await this.uploadCss(),
 				noteWidth: this.settings.noteWidth,
 				encrypted: shouldEncrypt,
@@ -91,14 +109,21 @@ export class ShareApiService {
 				description: shouldEncrypt ? undefined : description,
 			});
 
-			const filename = `${shortId}.html`;
-			const result = await this.provider.upload(html, filename, 'text/html');
+			const meta: ShareMeta = {
+				shortId,
+				title,
+				encrypted: shouldEncrypt,
+				expiresAt: options.expiresAt,
+				vaultId: this.settings.vaultId,
+			};
+
+			const result = await this.provider.upload(html, filename, 'text/html', meta);
 
 			if (!result.success) {
 				return { success: false, error: result.error };
 			}
 
-			let url = result.url || this.provider.getPublicUrl(filename);
+			let url = result.url || publicUrl;
 			if (shouldEncrypt && encryptionKey) {
 				url = `${url}#${encryptionKey}`;
 			}
@@ -107,6 +132,7 @@ export class ShareApiService {
 				success: true,
 				url,
 				shortId,
+				encrypted: shouldEncrypt,
 			};
 		} catch (error) {
 			return {
@@ -164,33 +190,39 @@ export class ShareApiService {
 		}
 	}
 
-	async deleteNote(shortId: string): Promise<boolean> {
-		if (!this.provider) {
-			return false;
-		}
+	/** Deletes via the provider the note was actually shared to, not the active one. */
+	async deleteNote(note: SharedNote): Promise<boolean> {
+		const provider =
+			note.provider === this.settings.activeProvider
+				? this.provider
+				: this.getProviderFor(note.provider);
+		if (!provider) return false;
 
 		try {
-			const result = await this.provider.delete(`${shortId}.html`);
+			const result = await provider.delete(`${note.shortId}.html`);
 			return result.success;
 		} catch {
 			return false;
 		}
 	}
 
-	async uploadAsset(data: ArrayBuffer, filename: string, mimeType: string): Promise<string | null> {
-		if (!this.provider) {
-			return null;
-		}
-
+	/** Server-side share registry, if the active provider supports it. */
+	async listRemoteNotes(): Promise<RemoteNoteMeta[] | null> {
+		if (!this.provider?.list) return null;
 		try {
-			const hash = await sha1(data);
-			const ext = filename.split('.').pop() || 'bin';
-			const hashedFilename = `assets/${hash}.${ext}`;
-
-			const result = await this.provider.uploadBinary(data, hashedFilename, mimeType);
-			return result.success ? result.url || null : null;
+			return await this.provider.list(this.settings.vaultId);
 		} catch {
 			return null;
+		}
+	}
+
+	async revokeNote(shortId: string, revoked: boolean): Promise<boolean> {
+		if (!this.provider?.revoke) return false;
+		try {
+			const result = await this.provider.revoke(shortId, revoked);
+			return result.success;
+		} catch {
+			return false;
 		}
 	}
 
@@ -244,10 +276,9 @@ export class ShareApiService {
 					// Cross-origin stylesheet, skip
 				}
 			});
-			const extracted = rules.join('').replace(/\n/g, '');
-			return extracted.length > 0 ? extracted : generateDefaultCss();
+			return rules.join('').replace(/\n/g, '');
 		} catch {
-			return generateDefaultCss();
+			return '';
 		}
 	}
 
@@ -456,4 +487,12 @@ export class ShareApiService {
 		const desc = paragraphs.slice(0, 2).join(' ').replace(/\n/g, ' ').trim();
 		return desc.length > 200 ? desc.slice(0, 197) + '...' : desc;
 	}
+}
+
+/** Hangul ratio over the sampled text decides the page language. */
+function detectLang(sample: string): 'ko' | 'en' {
+	const letters = sample.replace(/[^A-Za-z가-힣]/g, '');
+	if (letters.length === 0) return 'en';
+	const hangul = (letters.match(/[가-힣]/g) || []).length;
+	return hangul / letters.length > 0.05 ? 'ko' : 'en';
 }

@@ -6,12 +6,16 @@ import {
 	TFile,
 } from 'obsidian';
 import type CMDSSharePlugin from './main';
-import { 
-	CMS_VIEW_TYPE, 
-	SharedNote, 
+import {
+	CMS_VIEW_TYPE,
+	SharedNote,
 	CMSStats,
 	PROVIDER_DISPLAY_NAMES,
+	SUPPORTED_PROVIDERS,
+	ServerProviderType,
 } from './types';
+import { RemoteNoteMeta } from './providers';
+import { ConfirmDeleteModal } from './modals';
 
 export class CMSView extends ItemView {
 	plugin: CMDSSharePlugin;
@@ -65,22 +69,62 @@ export class CMSView extends ItemView {
 		container.empty();
 		container.addClass('cmds-share-cms');
 
+		// pull server registry first so view counts / revocation are current
+		const remote = await this.plugin.reconcileSharedNotes();
+
 		const notes = this.plugin.getSharedNotes();
 		const stats = this.calculateStats(notes);
 
 		this.renderHeader(container, stats);
 		this.renderStats(container, stats);
 		this.renderNotesList(container, notes);
+
+		if (remote) {
+			const localIds = new Set(notes.map(n => n.shortId));
+			const orphans = remote.filter(r => !localIds.has(r.shortId));
+			if (orphans.length > 0) {
+				this.renderOrphans(container, orphans);
+			}
+		}
+	}
+
+	/** Shares that exist on the server but have no local record (e.g. lost data.json). */
+	private renderOrphans(container: Element, orphans: RemoteNoteMeta[]): void {
+		const section = container.createDiv({ cls: 'cmds-share-cms-orphans' });
+		section.createEl('h3', { text: `On server only (${orphans.length})` });
+		section.createEl('p', {
+			text: 'Shares found on the server without a local record.',
+			cls: 'cmds-share-cms-empty-hint',
+		});
+
+		orphans.forEach(orphan => {
+			const item = section.createDiv({ cls: 'cmds-share-cms-item' });
+			const mainRow = item.createDiv({ cls: 'cmds-share-cms-item-main' });
+			mainRow.createSpan({ text: orphan.title || orphan.shortId, cls: 'cmds-share-cms-item-title' });
+			if (orphan.encrypted) mainRow.createSpan({ text: ' 🔒' });
+
+			const metaRow = item.createDiv({ cls: 'cmds-share-cms-item-meta' });
+			metaRow.createSpan({ text: `${orphan.shortId} • ${orphan.viewCount} views` });
+			if (orphan.revoked) metaRow.createSpan({ text: ' • revoked' });
+
+			const actionsRow = item.createDiv({ cls: 'cmds-share-cms-item-actions' });
+			const deleteBtn = actionsRow.createEl('button', {
+				text: 'Delete from server',
+				cls: 'cmds-share-cms-btn cmds-share-cms-btn-small cmds-share-cms-btn-danger',
+			});
+			deleteBtn.addEventListener('click', async () => {
+				const provider = this.plugin.api.getActiveProvider();
+				if (!provider) return;
+				const result = await provider.delete(`${orphan.shortId}.html`);
+				new Notice(result.success ? 'Deleted from server' : 'Delete failed');
+				await this.render();
+			});
+		});
 	}
 
 	private calculateStats(notes: SharedNote[]): CMSStats {
-		const byProvider: Record<string, number> = {
-			cloud: 0,
-			synology: 0,
-			github: 0,
-			supabase: 0,
-			convex: 0,
-		};
+		const byProvider = {} as Record<ServerProviderType, number>;
+		SUPPORTED_PROVIDERS.forEach(p => { byProvider[p] = 0; });
 
 		notes.forEach(note => {
 			byProvider[note.provider] = (byProvider[note.provider] || 0) + 1;
@@ -91,7 +135,7 @@ export class CMSView extends ItemView {
 			publishedNotes: notes.filter(n => n.status === 'published').length,
 			encryptedNotes: notes.filter(n => n.encrypted).length,
 			totalViews: notes.reduce((sum, n) => sum + (n.viewCount || 0), 0),
-			byProvider: byProvider as CMSStats['byProvider'],
+			byProvider,
 		};
 	}
 
@@ -173,9 +217,10 @@ export class CMSView extends ItemView {
 			titleContainer.createSpan({ text: ' 🔒', cls: 'cmds-share-cms-encrypted-badge' });
 		}
 
-		const statusBadge = mainRow.createSpan({ 
-			text: note.status,
-			cls: `cmds-share-cms-status cmds-share-cms-status-${note.status}`
+		const displayStatus = note.revoked ? 'revoked' : note.status;
+		mainRow.createSpan({
+			text: displayStatus,
+			cls: `cmds-share-cms-status cmds-share-cms-status-${displayStatus}`,
 		});
 
 		const metaRow = item.createDiv({ cls: 'cmds-share-cms-item-meta' });
@@ -247,21 +292,9 @@ export class CMSView extends ItemView {
 	}
 
 	private async confirmDelete(note: SharedNote): Promise<boolean> {
-		return new Promise(resolve => {
-			const notice = new Notice(
-				`Delete "${note.title}" from server? Click to confirm.`,
-				5000
-			);
-			
-			const noticeEl = (notice as unknown as { noticeEl: HTMLElement }).noticeEl;
-			noticeEl.style.cursor = 'pointer';
-			noticeEl.onclick = () => {
-				notice.hide();
-				resolve(true);
-			};
-			
-			setTimeout(() => resolve(false), 5000);
-		});
+		const modal = new ConfirmDeleteModal(this.app, note);
+		modal.open();
+		return modal.getResult();
 	}
 
 	private async deleteNote(note: SharedNote): Promise<void> {
@@ -319,6 +352,21 @@ export class CMSView extends ItemView {
 					}
 				});
 		});
+
+		if (note.provider === 'cloud') {
+			menu.addItem(item => {
+				item
+					.setTitle(note.revoked ? 'Restore access' : 'Revoke access')
+					.setIcon(note.revoked ? 'eye' : 'eye-off')
+					.onClick(async () => {
+						const ok = await this.plugin.revokeSharedNote(note, !note.revoked);
+						new Notice(ok
+							? (note.revoked ? 'Access revoked' : 'Access restored')
+							: 'Revoke failed');
+						await this.render();
+					});
+			});
+		}
 
 		menu.addSeparator();
 

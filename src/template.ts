@@ -1,11 +1,28 @@
 import { NoteTemplateData } from './types';
 
-const FAVICON_URL = 'https://cmdspace.work/assets/logos/cmds-logo-round.png';
+const LOGO_URL = 'https://cmdspace.work/assets/logos/cmds-logo-round.png';
+const OG_IMAGE_URL = 'https://share.cmdspace.work/assets/og/og-share.png';
+
+// Dark palette is emitted twice: once for the JS toggle ([data-theme="dark"])
+// and once as a pure-CSS fallback for JS-disabled visitors (prefers-color-scheme).
+const DARK_VARS = `
+	--text: #f2f4f3;
+	--muted: #9aa39d;
+	--bg: #06080a;
+	--accent: #E985A2;
+	--accent-light: #F4A4B8;
+	--accent-on: #1a0f14;
+	--border: #1a231f;
+	--code-bg: #161c19;
+	--card-bg: #0d1411;
+`;
 
 export function generateNoteHtml(data: NoteTemplateData): string {
 	const {
 		title,
 		content,
+		url,
+		lang,
 		cssUrl,
 		noteWidth,
 		encrypted,
@@ -15,6 +32,14 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 
 	const safeTitle = escapeHtml(title);
 	const safeDesc = escapeHtml((description || title).slice(0, 200));
+	const safeUrl = url ? escapeAttr(url) : '';
+	const ogLocale = lang === 'ko' ? 'ko_KR' : 'en_US';
+	const ogLocaleAlt = lang === 'ko' ? 'en_US' : 'ko_KR';
+
+	const urlMeta = safeUrl
+		? `<link rel="canonical" href="${safeUrl}">
+<meta property="og:url" content="${safeUrl}">`
+		: '';
 
 	const cssLink = cssUrl
 		? `<link rel="stylesheet" href="${escapeAttr(cssUrl)}">`
@@ -31,27 +56,38 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 		: `<article id="note-content" class="markdown-rendered">${content}</article>`;
 
 	return `<!DOCTYPE html>
-<html lang="ko">
+<html lang="${lang}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${safeTitle}</title>
 <meta name="description" content="${safeDesc}">
+${urlMeta}
 
-<link rel="icon" type="image/png" href="${FAVICON_URL}">
-<link rel="apple-touch-icon" href="${FAVICON_URL}">
+<link rel="icon" type="image/png" href="${LOGO_URL}">
+<link rel="apple-touch-icon" href="${LOGO_URL}">
 
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="CMDSPACE">
 <meta property="og:title" content="${safeTitle}">
 <meta property="og:description" content="${safeDesc}">
-<meta property="og:image" content="${FAVICON_URL}">
-<meta property="og:locale" content="ko_KR">
+<meta property="og:image" content="${OG_IMAGE_URL}">
+<meta property="og:image:secure_url" content="${OG_IMAGE_URL}">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="CMDS Share — ${safeTitle}">
+<meta property="og:locale" content="${ogLocale}">
+<meta property="og:locale:alternate" content="${ogLocaleAlt}">
 
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${safeTitle}">
 <meta name="twitter:description" content="${safeDesc}">
-<meta name="twitter:image" content="${FAVICON_URL}">
+<meta name="twitter:image" content="${OG_IMAGE_URL}">
+
+<script>
+(function(){try{var t=localStorage.getItem('cmds-theme');if(t){document.documentElement.dataset.theme=t;}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.dataset.theme='dark';}else{document.documentElement.dataset.theme='light';}}catch(e){}})();
+</script>
 
 <style>
 :root {
@@ -66,21 +102,14 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 	--code-bg: #f5f5f5;
 	--card-bg: #fff;
 }
-[data-theme="dark"] {
-	--text: #f2f4f3;
-	--muted: #9aa39d;
-	--bg: #06080a;
-	--accent: #E985A2;
-	--accent-light: #F4A4B8;
-	--accent-on: #0b0f0d;
-	--border: #1a231f;
-	--code-bg: #161c19;
-	--card-bg: #0d1411;
+[data-theme="dark"] {${DARK_VARS}}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {${DARK_VARS}}
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html { color-scheme: light dark; transition: background-color .2s; }
+html { color-scheme: light dark; }
 body {
-	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard', 'Segoe UI', system-ui, sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif;
 	color: var(--text); background: var(--bg); line-height: 1.7;
 	font-size: 16px; -webkit-font-smoothing: antialiased;
 	transition: background-color .2s, color .2s;
@@ -159,10 +188,13 @@ main {
 
 .cmds-meta {
 	max-width: var(--max); margin: 0 auto;
-	padding: 2rem 1.5rem 1rem; border-top: 1px solid var(--border);
+	padding: 2rem 1.5rem 2rem; border-top: 1px solid var(--border);
 	font-size: 0.75rem; color: var(--muted); text-align: center;
+	display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
 }
+.cmds-meta img { width: 28px; height: 28px; border-radius: 50%; }
 .cmds-meta a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.cmds-meta a:hover { text-decoration: underline; }
 .cmds-loading { color: var(--muted); font-style: italic; }
 .decrypt-error {
 	color: #c62828; background: #fce4ec; padding: 1rem; border-radius: 8px;
@@ -183,7 +215,8 @@ ${cssLink}
 </main>
 
 <footer class="cmds-meta">
-	Shared via <a href="https://cmdspace.work" target="_blank" rel="noopener">CMDS Share</a>
+	<a href="https://cmdspace.work" target="_blank" rel="noopener"><img src="${LOGO_URL}" alt="CMDSPACE"></a>
+	<span>Shared via <a href="https://cmdspace.work" target="_blank" rel="noopener">CMDS Share</a></span>
 </footer>
 
 ${encryptedDataDiv}
@@ -194,19 +227,17 @@ ${decryptionScript}
 	var icon = document.getElementById('themeIcon');
 	var SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
 	var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-	function apply(theme) {
-		document.documentElement.dataset.theme = theme;
-		try { localStorage.setItem('cmds-theme', theme); } catch(e) {}
+	function paint(theme) {
 		if (icon) icon.innerHTML = theme === 'dark' ? MOON : SUN;
 	}
 	var btn = document.getElementById('themeToggle');
 	if (btn) btn.addEventListener('click', function() {
-		apply(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+		var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+		document.documentElement.dataset.theme = next;
+		try { localStorage.setItem('cmds-theme', next); } catch(e) {}
+		paint(next);
 	});
-	var saved = null;
-	try { saved = localStorage.getItem('cmds-theme'); } catch(e) {}
-	var initial = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-	apply(initial);
+	paint(document.documentElement.dataset.theme || 'light');
 })();
 </script>
 </body>
@@ -216,10 +247,16 @@ ${decryptionScript}
 const DECRYPTION_SCRIPT = `
 <script>
 (async function() {
-	function base64ToArrayBuffer(b64) {
+	function base64ToBytes(b64) {
 		const bin = atob(b64); const bytes = new Uint8Array(bin.length);
 		for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-		return bytes.buffer;
+		return bytes;
+	}
+	// The key travels URL-fragment-safe (base64url, no padding) — restore standard base64
+	function keyToBytes(key) {
+		let b64 = key.replace(/-/g, '+').replace(/_/g, '/');
+		while (b64.length % 4) b64 += '=';
+		return base64ToBytes(b64);
 	}
 	function indexToIv(i) {
 		const iv = new Uint8Array(12);
@@ -233,17 +270,22 @@ const DECRYPTION_SCRIPT = `
 		if (!dataEl) throw new Error('No encrypted payload');
 
 		const payload = JSON.parse(dataEl.textContent);
-		const masterKey = base64ToArrayBuffer(key);
-		const aesKey = await crypto.subtle.importKey('raw', masterKey, { name: 'AES-GCM' }, false, ['decrypt']);
+		const aesKey = await crypto.subtle.importKey('raw', keyToBytes(key), { name: 'AES-GCM' }, false, ['decrypt']);
 
-		const chunks = [];
+		// chunks are byte slices of one UTF-8 stream: concatenate bytes FIRST, decode once
+		const parts = [];
+		let total = 0;
 		for (let i = 0; i < payload.ciphertext.length; i++) {
-			const chunk = base64ToArrayBuffer(payload.ciphertext[i]);
-			const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: indexToIv(i) }, aesKey, chunk);
-			chunks.push(new TextDecoder().decode(decrypted));
+			const chunk = base64ToBytes(payload.ciphertext[i]);
+			const decrypted = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: indexToIv(i) }, aesKey, chunk));
+			parts.push(decrypted);
+			total += decrypted.length;
 		}
+		const all = new Uint8Array(total);
+		let offset = 0;
+		for (const part of parts) { all.set(part, offset); offset += part.length; }
 
-		const data = JSON.parse(chunks.join(''));
+		const data = JSON.parse(new TextDecoder().decode(all));
 		const target = document.getElementById('note-content');
 		target.innerHTML = data.content;
 		if (data.title) document.title = data.title;
@@ -255,10 +297,6 @@ const DECRYPTION_SCRIPT = `
 })();
 </script>
 `;
-
-export function generateDefaultCss(): string {
-	return '';
-}
 
 function escapeHtml(text: string): string {
 	return String(text)

@@ -12,6 +12,7 @@ import {
 	CMS_VIEW_TYPE,
 } from './types';
 import { ShareApiService } from './api';
+import { RemoteNoteMeta } from './providers';
 import { CMDSShareSettingTab } from './settings';
 import { CMSView } from './cms';
 import { ShareOptionsModal, ConfirmDeleteModal, SharedNotesModal } from './modals';
@@ -134,7 +135,17 @@ export default class CMDSSharePlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		const data = await this.loadData();
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings || data);
+		const saved = data?.settings || data || {};
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+		// deep-merge provider configs so new default fields survive old data.json files
+		this.settings.providers = { ...DEFAULT_SETTINGS.providers };
+		for (const key of Object.keys(DEFAULT_SETTINGS.providers) as (keyof typeof DEFAULT_SETTINGS.providers)[]) {
+			this.settings.providers[key] = Object.assign(
+				{},
+				DEFAULT_SETTINGS.providers[key],
+				saved.providers?.[key]
+			);
+		}
 
 		let dirty = false;
 		if (!this.settings.uid) {
@@ -201,8 +212,12 @@ export default class CMDSSharePlugin extends Plugin {
 
 		const existing = this.sharedNotes.get(file.path);
 		const reuseShortId = existing?.shortId;
+		const expiresAt = this.calculateExpiration(response.expiration);
 
-		const result = await this.api.shareNote(file, content, title, this.app, reuseShortId);
+		const result = await this.api.shareNote(file, content, title, this.app, reuseShortId, {
+			encrypted: response.encrypted,
+			expiresAt,
+		});
 
 		if (!result.success) {
 			new Notice(`Failed to share: ${result.error}`);
@@ -217,13 +232,13 @@ export default class CMDSSharePlugin extends Plugin {
 			shortId: result.shortId || existing?.shortId || '',
 			title,
 			status: 'published',
-			encrypted: response.encrypted,
+			encrypted: result.encrypted ?? response.encrypted,
 			provider: this.settings.activeProvider,
 			vaultId: this.settings.vaultId,
 			vaultName: this.settings.vaultName,
 			createdAt: existing?.createdAt ?? now,
 			updatedAt: now,
-			expiresAt: this.calculateExpiration(response.expiration),
+			expiresAt,
 		};
 
 		this.sharedNotes.set(file.path, sharedNote);
@@ -236,7 +251,7 @@ export default class CMDSSharePlugin extends Plugin {
 	}
 
 	async deleteSharedNote(note: SharedNote): Promise<boolean> {
-		const success = await this.api.deleteNote(note.shortId);
+		const success = await this.api.deleteNote(note);
 
 		if (success) {
 			this.sharedNotes.delete(note.filePath);
@@ -320,6 +335,52 @@ export default class CMDSSharePlugin extends Plugin {
 
 	getSharedNotes(): SharedNote[] {
 		return Array.from(this.sharedNotes.values());
+	}
+
+	/**
+	 * Pull the server-side registry (CMDSPACE provider) and merge view counts /
+	 * revocation / expiry status into local records. Returns the remote list so
+	 * the CMS can surface orphans, or null when the provider can't list.
+	 */
+	async reconcileSharedNotes(): Promise<RemoteNoteMeta[] | null> {
+		const remote = await this.api.listRemoteNotes();
+		if (!remote) return null;
+
+		const byShortId = new Map(remote.map(r => [r.shortId, r]));
+		let dirty = false;
+
+		for (const note of this.sharedNotes.values()) {
+			if (note.provider !== this.settings.activeProvider) continue;
+			const r = byShortId.get(note.shortId);
+			if (!r) continue;
+
+			const status: SharedNote['status'] = r.revoked
+				? 'archived'
+				: r.expiresAt && r.expiresAt < Date.now()
+					? 'expired'
+					: 'published';
+
+			if (note.viewCount !== r.viewCount || note.revoked !== r.revoked || note.status !== status) {
+				note.viewCount = r.viewCount;
+				note.revoked = r.revoked;
+				note.status = status;
+				dirty = true;
+			}
+		}
+
+		if (dirty) await this.saveSharedNotes();
+		return remote;
+	}
+
+	async revokeSharedNote(note: SharedNote, revoked: boolean): Promise<boolean> {
+		const success = await this.api.revokeNote(note.shortId, revoked);
+		if (success) {
+			note.revoked = revoked;
+			note.status = revoked ? 'archived' : 'published';
+			this.sharedNotes.set(note.filePath, note);
+			await this.saveSharedNotes();
+		}
+		return success;
 	}
 
 	isNoteShared(filePath: string): boolean {

@@ -8,10 +8,15 @@ export const upload = mutation({
     content: v.string(),
     filename: v.string(),
     mimeType: v.string(),
+    title: v.optional(v.string()),
     encrypted: v.optional(v.boolean()),
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (args.content.length > MAX_CONTENT_BYTES) {
+      throw new Error(`Content exceeds ${MAX_CONTENT_BYTES} bytes`);
+    }
+
     const existing = await ctx.db
       .query("notes")
       .withIndex("by_filename", (q) => q.eq("filename", args.filename))
@@ -21,6 +26,7 @@ export const upload = mutation({
       await ctx.db.patch(existing._id, {
         content: args.content,
         mimeType: args.mimeType,
+        title: args.title ?? existing.title,
         encrypted: args.encrypted ?? false,
         expiresAt: args.expiresAt,
       });
@@ -29,7 +35,7 @@ export const upload = mutation({
 
     const id = await ctx.db.insert("notes", {
       filename: args.filename,
-      title: args.filename.replace(/\.[^.]+$/, ""),
+      title: args.title ?? args.filename.replace(/\.[^.]+$/, ""),
       content: args.content,
       mimeType: args.mimeType,
       encrypted: args.encrypted ?? false,
