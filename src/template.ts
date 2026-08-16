@@ -282,8 +282,10 @@ main {
 }
 #note-content h1 { font-size: 1.85rem; margin-top: 2.4rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
 #note-content h2 { font-size: 1.4rem; margin-top: 2.2rem; }
-#note-content h3 { font-size: 1.15rem; }
-#note-content h4 { font-size: 1rem; color: var(--muted); }
+#note-content h3 { font-size: 1.18rem; }
+#note-content h4 { font-size: 1.06rem; color: var(--text); margin-top: 1.8rem; }
+#note-content h5 { font-size: 0.98rem; color: var(--text); }
+#note-content h6 { font-size: 0.9rem; color: var(--muted); }
 #note-content p { margin: 0.85rem 0; }
 #note-content ul, #note-content ol { margin: 0.85rem 0 0.85rem 1.4rem; }
 #note-content li { margin: 0.35rem 0; }
