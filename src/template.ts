@@ -1,28 +1,81 @@
-import { NoteTemplateData } from './types';
+import { NoteTemplateData, ShareTheme, ThemePalette, ThemeVars } from './types';
 
 const LOGO_URL = 'https://cmdspace.work/assets/logos/cmds-logo-round.png';
 const OG_IMAGE_URL = 'https://share.cmdspace.work/assets/og/og-share.png';
 
-// Dark palette is emitted twice: once for the JS toggle ([data-theme="dark"])
-// and once as a pure-CSS fallback for JS-disabled visitors (prefers-color-scheme).
-const DARK_VARS = `
-	--text: #f2f4f3;
-	--muted: #9aa39d;
-	--bg: #06080a;
-	--accent: #E985A2;
-	--accent-light: #F4A4B8;
-	--accent-on: #1a0f14;
-	--border: #1a231f;
-	--code-bg: #161c19;
-	--card-bg: #0d1411;
-	--pre-bg: #0a0d0b;
-	--pre-fg: #e0e0e0;
-	--graph-note: #2fb488;
-`;
+/** Built-in share-page palettes. 'obsidian' is resolved at share time in api.ts. */
+export const PALETTES: Record<Exclude<ShareTheme, 'obsidian'>, ThemePalette> = {
+	cmds: {
+		light: {
+			text: '#1a1a1a', muted: '#666', bg: '#fff',
+			accent: '#134538', accentLight: '#1a5c4a', accentOn: '#fff',
+			border: '#e5e5e5', codeBg: '#f5f5f5', cardBg: '#fff',
+			preBg: '#f5f6f4', preFg: '#24292e', graphNote: '#22896a',
+		},
+		dark: {
+			text: '#f2f4f3', muted: '#9aa39d', bg: '#06080a',
+			accent: '#E985A2', accentLight: '#F4A4B8', accentOn: '#1a0f14',
+			border: '#1a231f', codeBg: '#161c19', cardBg: '#0d1411',
+			preBg: '#0a0d0b', preFg: '#e0e0e0', graphNote: '#2fb488',
+		},
+	},
+	mono: {
+		light: {
+			text: '#111', muted: '#6b6b6b', bg: '#fff',
+			accent: '#111', accentLight: '#333', accentOn: '#fff',
+			border: '#e4e4e4', codeBg: '#f4f4f4', cardBg: '#fff',
+			preBg: '#f6f6f6', preFg: '#222', graphNote: '#555',
+		},
+		dark: {
+			text: '#ececec', muted: '#9a9a9a', bg: '#0a0a0a',
+			accent: '#ececec', accentLight: '#fff', accentOn: '#0a0a0a',
+			border: '#242424', codeBg: '#161616', cardBg: '#101010',
+			preBg: '#111', preFg: '#ddd', graphNote: '#aaa',
+		},
+	},
+	sepia: {
+		light: {
+			text: '#3d3427', muted: '#8a7a63', bg: '#f8f2e7',
+			accent: '#8a5a2b', accentLight: '#a5713c', accentOn: '#fff',
+			border: '#e6dcc9', codeBg: '#efe6d4', cardBg: '#fdf9f0',
+			preBg: '#f1e9d8', preFg: '#4a3f2e', graphNote: '#8a5a2b',
+		},
+		dark: {
+			text: '#e8ded0', muted: '#a3947d', bg: '#201a12',
+			accent: '#d9a05b', accentLight: '#e6b678', accentOn: '#241a0d',
+			border: '#3a3123', codeBg: '#2a2318', cardBg: '#271f15',
+			preBg: '#231c12', preFg: '#ddd2c0', graphNote: '#d9a05b',
+		},
+	},
+	ocean: {
+		light: {
+			text: '#14212b', muted: '#5b7183', bg: '#fafcfd',
+			accent: '#0b5c8a', accentLight: '#13729f', accentOn: '#fff',
+			border: '#dfe8ee', codeBg: '#eef4f8', cardBg: '#fff',
+			preBg: '#eef3f7', preFg: '#1e2f3c', graphNote: '#0e7fae',
+		},
+		dark: {
+			text: '#e6eef4', muted: '#8ca3b4', bg: '#06121a',
+			accent: '#58b7e6', accentLight: '#7cc8ef', accentOn: '#04121b',
+			border: '#152733', codeBg: '#0c1e2a', cardBg: '#0a1a24',
+			preBg: '#081722', preFg: '#d5e4ee', graphNote: '#58b7e6',
+		},
+	},
+};
+
+function varsCss(v: ThemeVars): string {
+	return [
+		`--text: ${v.text}`, `--muted: ${v.muted}`, `--bg: ${v.bg}`,
+		`--accent: ${v.accent}`, `--accent-light: ${v.accentLight}`, `--accent-on: ${v.accentOn}`,
+		`--border: ${v.border}`, `--code-bg: ${v.codeBg}`, `--card-bg: ${v.cardBg}`,
+		`--pre-bg: ${v.preBg}`, `--pre-fg: ${v.preFg}`, `--graph-note: ${v.graphNote}`,
+	].join(';\n\t') + ';';
+}
 
 export function generateNoteHtml(data: NoteTemplateData): string {
 	const {
 		title,
+		palette,
 		content,
 		url,
 		lang,
@@ -100,25 +153,19 @@ ${urlMeta}
 <style>
 :root {
 	--max: ${escapeAttr(noteWidth)};
-	--text: #1a1a1a;
-	--muted: #666;
-	--bg: #fff;
-	--accent: #134538;
-	--accent-light: #1a5c4a;
-	--accent-on: #fff;
-	--border: #e5e5e5;
-	--code-bg: #f5f5f5;
-	--card-bg: #fff;
-	--pre-bg: #f5f6f4;
-	--pre-fg: #24292e;
-	--graph-note: #22896a;
+	${varsCss(palette.light)}
 }
-[data-theme="dark"] {${DARK_VARS}}
+[data-theme="dark"] {
+	${varsCss(palette.dark)}
+}
 @media (prefers-color-scheme: dark) {
-	:root:not([data-theme="light"]) {${DARK_VARS}}
+	:root:not([data-theme="light"]) {
+	${varsCss(palette.dark)}
+	}
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { color-scheme: light dark; scroll-behavior: smooth; }
+html, body { overflow-x: hidden; }
 body {
 	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif;
 	color: var(--text); background: var(--bg); line-height: 1.7;
@@ -225,7 +272,7 @@ main {
 	max-width: var(--max); margin: 0 auto; padding: 4rem 1.5rem 3rem;
 }
 
-#note-content { font-size: 1rem; }
+#note-content { font-size: 1rem; overflow-wrap: break-word; }
 #note-content h1, #note-content h2, #note-content h3,
 #note-content h4, #note-content h5, #note-content h6 {
 	font-weight: 700; letter-spacing: -0.02em; line-height: 1.3;
@@ -258,7 +305,10 @@ main {
 .code-copy {
 	position: absolute; top: 8px; right: 8px;
 	width: 28px; height: 28px; border-radius: 6px;
-	background: var(--card-bg); border: 1px solid var(--border);
+	background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+	backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+	border: 1px solid var(--border);
+	box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18);
 	color: var(--muted); cursor: pointer;
 	display: grid; place-items: center;
 	opacity: 0; transition: opacity .15s, color .15s, border-color .15s;
@@ -275,6 +325,8 @@ main {
 #note-content h1:hover .h-anchor, #note-content h2:hover .h-anchor,
 #note-content h3:hover .h-anchor, #note-content h4:hover .h-anchor { opacity: 0.75; }
 #note-content pre code { background: transparent; padding: 0; font-size: 1em; }
+.mermaid-container { margin: 1rem 0; overflow-x: auto; text-align: center; }
+.mermaid-container svg { max-width: 100%; height: auto; }
 #note-content blockquote {
 	border-left: 3px solid var(--accent); padding: 0.5rem 1rem;
 	margin: 1rem 0; color: var(--muted); background: var(--code-bg);
@@ -282,8 +334,11 @@ main {
 }
 #note-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 1rem 0; }
 #note-content table {
-	border-collapse: collapse; width: 100%; margin: 1rem 0;
+	border-collapse: collapse; margin: 1rem 0;
 	font-size: 0.9rem;
+	/* wide tables scroll inside themselves instead of panning the page */
+	display: block; width: max-content; min-width: 60%; max-width: 100%;
+	overflow-x: auto;
 }
 #note-content th, #note-content td {
 	border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left;
@@ -292,10 +347,31 @@ main {
 #note-content hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 #note-content mark { background: rgba(233,133,162,0.25); padding: 0 0.2rem; border-radius: 3px; }
 #note-content .callout {
-	background: var(--code-bg); border-radius: 8px; padding: 1rem;
-	margin: 1rem 0; border-left: 3px solid var(--accent);
+	--co: var(--accent);
+	background: var(--code-bg); border-radius: 8px; padding: 0.9rem 1rem;
+	margin: 1rem 0; border-left: 3px solid var(--co);
 }
-#note-content .callout-title { font-weight: 700; margin-bottom: 0.4rem; }
+#note-content .callout-title {
+	display: flex; align-items: center; gap: 0.5em;
+	font-weight: 700; color: var(--co); margin: 0;
+}
+#note-content .callout-icon { display: flex; align-items: center; flex-shrink: 0; }
+#note-content .callout-icon svg, #note-content .callout-title > svg {
+	width: 1.1em; height: 1.1em;
+}
+#note-content .callout-title-inner { line-height: 1.45; }
+#note-content .callout-fold { display: none; }
+#note-content .callout-content > :first-child { margin-top: 0.45rem; }
+#note-content .callout-content > :last-child { margin-bottom: 0.1rem; }
+#note-content .callout[data-callout="abstract"], #note-content .callout[data-callout="summary"], #note-content .callout[data-callout="tldr"] { --co: #23a8b8; }
+#note-content .callout[data-callout="info"], #note-content .callout[data-callout="note"], #note-content .callout[data-callout="todo"] { --co: #4a8edb; }
+#note-content .callout[data-callout="tip"], #note-content .callout[data-callout="hint"], #note-content .callout[data-callout="important"] { --co: #23b89b; }
+#note-content .callout[data-callout="success"], #note-content .callout[data-callout="check"], #note-content .callout[data-callout="done"] { --co: #3aa657; }
+#note-content .callout[data-callout="question"], #note-content .callout[data-callout="help"], #note-content .callout[data-callout="faq"] { --co: #d9a13b; }
+#note-content .callout[data-callout="warning"], #note-content .callout[data-callout="caution"], #note-content .callout[data-callout="attention"] { --co: #e0813a; }
+#note-content .callout[data-callout="danger"], #note-content .callout[data-callout="error"], #note-content .callout[data-callout="failure"], #note-content .callout[data-callout="fail"], #note-content .callout[data-callout="missing"], #note-content .callout[data-callout="bug"] { --co: #e05252; }
+#note-content .callout[data-callout="example"] { --co: #8a6fd6; }
+#note-content .callout[data-callout="quote"], #note-content .callout[data-callout="cite"] { --co: var(--muted); }
 #note-content .internal-link {
 	color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: help;
 }
@@ -354,6 +430,53 @@ ${cssLink}
 ${encryptedDataDiv}
 ${graphDataDiv}
 ${decryptionScript}
+
+<script type="module">
+(async function() {
+	// mermaid sources travel base64-encoded in data-mmd; render with the LATEST mermaid
+	if (document.getElementById('encrypted-data')) {
+		await new Promise(function(r) { document.addEventListener('cmds-content-ready', r, { once: true }); });
+	}
+	var containers = Array.from(document.querySelectorAll('.mermaid-container[data-mmd]'));
+	if (!containers.length) return;
+	function decode(b64) {
+		var bin = atob(b64); var bytes = new Uint8Array(bin.length);
+		for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+		return new TextDecoder().decode(bytes);
+	}
+	var sources = containers.map(function(d) { return decode(d.getAttribute('data-mmd')); });
+	var mermaid;
+	try {
+		mermaid = (await import('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.esm.min.mjs')).default;
+	} catch (e) {
+		containers.forEach(function(d, i) {
+			var pre = document.createElement('pre');
+			pre.textContent = sources[i];
+			d.replaceWith(pre);
+		});
+		return;
+	}
+	var seq = 0;
+	async function renderAll() {
+		var dark = document.documentElement.dataset.theme === 'dark';
+		mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'neutral', securityLevel: 'strict' });
+		for (var i = 0; i < containers.length; i++) {
+			try {
+				var out = await mermaid.render('cmds-mmd-' + i + '-' + (seq++), sources[i]);
+				containers[i].innerHTML = out.svg;
+			} catch (e) {
+				var pre = document.createElement('pre');
+				pre.textContent = sources[i];
+				containers[i].innerHTML = '';
+				containers[i].appendChild(pre);
+			}
+		}
+	}
+	await renderAll();
+	new MutationObserver(function() { renderAll(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+
 
 <script>
 (function() {
@@ -863,6 +986,14 @@ const PANELS_SCRIPT = `
 		if (hasToc || hasGraph) {
 			document.querySelectorAll('[data-pin]').forEach(function(btn) {
 				btn.addEventListener('click', function() { setDock(!docked()); });
+			});
+			// floating popups close on any click outside the card (docked stays put)
+			document.addEventListener('pointerdown', function(e) {
+				if (docked()) return;
+				if (e.target.closest('.side-panel, .side-tools')) return;
+				Object.keys(PANELS).forEach(function(k) {
+					if (document.getElementById(PANELS[k]).classList.contains('open')) setPanel(k, false);
+				});
 			});
 		}
 		try {

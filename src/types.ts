@@ -4,6 +4,29 @@ export type ShareStatus = 'draft' | 'published' | 'archived' | 'expired';
 
 export type EncryptionMode = 'auto' | 'always' | 'never';
 
+export type ShareTheme = 'cmds' | 'mono' | 'sepia' | 'ocean' | 'obsidian';
+
+/** One mode's worth of share-page colors. */
+export interface ThemeVars {
+	text: string;
+	muted: string;
+	bg: string;
+	accent: string;
+	accentLight: string;
+	accentOn: string;
+	border: string;
+	codeBg: string;
+	cardBg: string;
+	preBg: string;
+	preFg: string;
+	graphNote: string;
+}
+
+export interface ThemePalette {
+	light: ThemeVars;
+	dark: ThemeVars;
+}
+
 export interface SharedNote {
 	id: string;
 	filePath: string;
@@ -101,6 +124,7 @@ export interface CMDSShareSettings {
 	vaultName: string;
 	activeProvider: ServerProviderType;
 	encryptionMode: EncryptionMode;
+	shareTheme: ShareTheme;
 	defaultExpiration: string;
 	includeTheme: boolean;
 	removeBacklinks: boolean;
@@ -128,6 +152,7 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	vaultName: '',
 	activeProvider: 'cloud',
 	encryptionMode: 'auto',
+	shareTheme: 'cmds',
 	defaultExpiration: '',
 	includeTheme: true,
 	removeBacklinks: true,
@@ -204,6 +229,7 @@ export interface NoteGraphData {
 
 export interface NoteTemplateData {
 	title: string;
+	palette: ThemePalette;
 	content: string;
 	url?: string;
 	lang: 'ko' | 'en';

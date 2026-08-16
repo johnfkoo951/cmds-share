@@ -1,13 +1,30 @@
-import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags } from 'obsidian';
-import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType, NoteGraphData } from './types';
+import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags, setIcon } from 'obsidian';
+import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType, NoteGraphData, ThemePalette, ThemeVars } from './types';
 import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
-import { generateNoteHtml } from './template';
+import { generateNoteHtml, PALETTES } from './template';
 
 const ASSET_MIME: Record<string, string> = {
 	png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
 	gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
 	avif: 'image/avif', bmp: 'image/bmp',
+};
+
+// Obsidian's built-in callout-type → lucide icon map
+const CALLOUT_ICONS: Record<string, string> = {
+	note: 'lucide-pencil',
+	abstract: 'lucide-clipboard-list', summary: 'lucide-clipboard-list', tldr: 'lucide-clipboard-list',
+	info: 'lucide-info',
+	todo: 'lucide-check-circle-2',
+	tip: 'lucide-flame', hint: 'lucide-flame', important: 'lucide-flame',
+	success: 'lucide-check', check: 'lucide-check', done: 'lucide-check',
+	question: 'lucide-help-circle', help: 'lucide-help-circle', faq: 'lucide-help-circle',
+	warning: 'lucide-alert-triangle', caution: 'lucide-alert-triangle', attention: 'lucide-alert-triangle',
+	failure: 'lucide-x', fail: 'lucide-x', missing: 'lucide-x',
+	danger: 'lucide-zap', error: 'lucide-zap',
+	bug: 'lucide-bug',
+	example: 'lucide-list',
+	quote: 'lucide-quote', cite: 'lucide-quote',
 };
 
 export interface ShareOptions {
@@ -80,6 +97,11 @@ export class ShareApiService {
 			const extractedContent = await this.extractRenderedContent(app, file);
 			let htmlContent = extractedContent || await this.renderMarkdown(content, file, app);
 
+			// mermaid renders async in Obsidian, so the serialized DOM loses the
+			// source — re-inject it from the raw markdown; the share page renders
+			// it client-side with the latest mermaid build
+			htmlContent = injectMermaidSources(htmlContent, content);
+
 			// Assets are uploaded before encryption so encrypted notes keep working
 			// images. Asset URLs are content-hashed and unlisted, but they are NOT
 			// covered by the E2E encryption.
@@ -99,6 +121,7 @@ export class ShareApiService {
 
 			const html = generateNoteHtml({
 				title,
+				palette: this.resolvePalette(),
 				content: shouldEncrypt ? '' : htmlContent,
 				url: publicUrl,
 				lang: detectLang(shouldEncrypt ? title : `${title} ${content.slice(0, 2000)}`),
@@ -297,6 +320,18 @@ export class ShareApiService {
 		root.querySelectorAll(
 			'[class*="snw-"], [data-snw-type], button, .metadata-container, .frontmatter, .frontmatter-container, .mod-frontmatter'
 		).forEach(el => el.remove());
+
+		// callout icons paint asynchronously in Obsidian, so the cloned/rendered
+		// DOM often carries an EMPTY <svg> — refill from the bundled icon set
+		root.querySelectorAll('.callout').forEach(callout => {
+			const iconEl = callout.querySelector('.callout-icon') as HTMLElement | null;
+			if (!iconEl) return;
+			const hasDrawnIcon = iconEl.querySelector('svg path, svg use, svg circle, svg rect, svg line, svg polyline, svg polygon');
+			if (hasDrawnIcon) return;
+			iconEl.empty();
+			const type = (callout.getAttribute('data-callout') || 'note').toLowerCase();
+			setIcon(iconEl, CALLOUT_ICONS[type] || 'lucide-pencil');
+		});
 	}
 
 	private async extractRenderedContent(app: App, file: TFile): Promise<string | null> {
@@ -379,6 +414,18 @@ export class ShareApiService {
 	 * (outgoing links, backlinks, tags), edges BETWEEN those neighbors, and a
 	 * capped ring of second-degree notes — same shape as Obsidian's local graph.
 	 */
+	private resolvePalette(): ThemePalette {
+		const theme = this.settings.shareTheme || 'cmds';
+		if (theme === 'obsidian') {
+			try {
+				return extractObsidianPalette();
+			} catch {
+				return PALETTES.cmds;
+			}
+		}
+		return PALETTES[theme] || PALETTES.cmds;
+	}
+
 	private collectGraphData(file: TFile, title: string, app: App): NoteGraphData | undefined {
 		const MAX_L1 = 16;
 		const MAX_NODES = 42;
@@ -474,4 +521,122 @@ function detectLang(sample: string): 'ko' | 'en' {
 	if (letters.length === 0) return 'en';
 	const hangul = (letters.match(/[가-힣]/g) || []).length;
 	return hangul / letters.length > 0.05 ? 'ko' : 'en';
+}
+
+
+// ═══ "Follow my Obsidian theme" palette extraction ═══
+// A probe element carrying .theme-light / .theme-dark picks up the theme's CSS
+// custom properties (rules are class-scoped, not body-scoped, in most themes),
+// and getComputedStyle resolves var() chains for us.
+
+const OBSIDIAN_VARS = [
+	'--background-primary',
+	'--background-primary-alt',
+	'--background-secondary',
+	'--text-normal',
+	'--text-muted',
+	'--text-accent',
+	'--text-accent-hover',
+	'--background-modifier-border',
+	'--code-background',
+] as const;
+
+function probeThemeVars(mode: 'theme-light' | 'theme-dark'): Record<string, string> {
+	const probe = document.body.createDiv({ cls: mode });
+	probe.style.position = 'absolute';
+	probe.style.visibility = 'hidden';
+	try {
+		const computed = getComputedStyle(probe);
+		const out: Record<string, string> = {};
+		for (const name of OBSIDIAN_VARS) {
+			const value = computed.getPropertyValue(name).trim();
+			if (value) out[name] = value;
+		}
+		return out;
+	} finally {
+		probe.remove();
+	}
+}
+
+function luminance(color: string): number {
+	// crude but sufficient: parse #rgb/#rrggbb or rgb()
+	let r = 0, g = 0, b = 0;
+	const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+	const rgb = color.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+	if (hex) {
+		let h = hex[1];
+		if (h.length === 3) h = h.split('').map(c => c + c).join('');
+		r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+	} else if (rgb) {
+		r = Number(rgb[1]); g = Number(rgb[2]); b = Number(rgb[3]);
+	} else {
+		return 0.5;
+	}
+	return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+function toVars(v: Record<string, string>, fallback: ThemeVars): ThemeVars {
+	const accent = v['--text-accent'] || fallback.accent;
+	return {
+		text: v['--text-normal'] || fallback.text,
+		muted: v['--text-muted'] || fallback.muted,
+		bg: v['--background-primary'] || fallback.bg,
+		accent,
+		accentLight: v['--text-accent-hover'] || accent,
+		accentOn: luminance(accent) > 0.55 ? '#111' : '#fff',
+		border: v['--background-modifier-border'] || fallback.border,
+		codeBg: v['--background-secondary'] || fallback.codeBg,
+		cardBg: v['--background-primary-alt'] || v['--background-secondary'] || fallback.cardBg,
+		preBg: v['--code-background'] || v['--background-secondary'] || fallback.preBg,
+		preFg: v['--text-normal'] || fallback.preFg,
+		graphNote: accent,
+	};
+}
+
+function extractObsidianPalette(): ThemePalette {
+	return {
+		light: toVars(probeThemeVars('theme-light'), PALETTES.cmds.light),
+		dark: toVars(probeThemeVars('theme-dark'), PALETTES.cmds.dark),
+	};
+}
+
+
+// ═══ mermaid source re-injection ═══
+
+function injectMermaidSources(html: string, markdown: string): string {
+	const sources: string[] = [];
+	const fence = /```mermaid[ \t]*\n([\s\S]*?)```/g;
+	let m: RegExpExecArray | null;
+	while ((m = fence.exec(markdown)) !== null) sources.push(m[1].trimEnd());
+	if (sources.length === 0) return html;
+
+	const root = document.createElement('div');
+	root.innerHTML = html;
+
+	// candidates in document order, covering both render paths
+	const candidates: Element[] = [];
+	root.querySelectorAll('.block-language-mermaid, div.mermaid, pre').forEach(el => {
+		if (el.tagName === 'PRE') {
+			const code = el.querySelector('code');
+			if (!code || !/language-mermaid/.test(code.className) && !/language-mermaid/.test(el.className)) return;
+		}
+		if (el.parentElement?.closest('.block-language-mermaid')) return; // avoid nested double-count
+		candidates.push(el);
+	});
+
+	const n = Math.min(candidates.length, sources.length);
+	for (let i = 0; i < n; i++) {
+		const holder = document.createElement('div');
+		holder.className = 'mermaid-container';
+		holder.setAttribute('data-mmd', textToBase64(sources[i]));
+		candidates[i].replaceWith(holder);
+	}
+	return root.innerHTML;
+}
+
+function textToBase64(text: string): string {
+	const bytes = new TextEncoder().encode(text);
+	let binary = '';
+	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+	return btoa(binary);
 }

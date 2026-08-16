@@ -1,10 +1,11 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import type CMDSSharePlugin from './main';
-import { 
-	ServerProviderType, 
-	PROVIDER_DISPLAY_NAMES, 
+import {
+	ServerProviderType,
+	PROVIDER_DISPLAY_NAMES,
 	SUPPORTED_PROVIDERS,
 	EXPIRATION_OPTIONS,
+	CMDSShareSettings,
 } from './types';
 
 export class CMDSShareSettingTab extends PluginSettingTab {
@@ -66,6 +67,21 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 
 		// Sharing Options
 		containerEl.createEl('h3', { text: 'Sharing Options' });
+
+		new Setting(containerEl)
+			.setName('Share page theme')
+			.setDesc('Color palette for shared pages. "Follow my Obsidian theme" captures your current theme\'s colors at share time.')
+			.addDropdown(dropdown => dropdown
+				.addOption('cmds', 'CMDS (default)')
+				.addOption('mono', 'Mono')
+				.addOption('sepia', 'Sepia')
+				.addOption('ocean', 'Ocean')
+				.addOption('obsidian', 'Follow my Obsidian theme')
+				.setValue(this.plugin.settings.shareTheme || 'cmds')
+				.onChange(async (value) => {
+					this.plugin.settings.shareTheme = value as CMDSShareSettings['shareTheme'];
+					await this.plugin.saveSettings();
+				}));
 
 		new Setting(containerEl)
 			.setName('Encryption mode')
