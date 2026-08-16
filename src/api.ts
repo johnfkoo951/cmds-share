@@ -234,9 +234,13 @@ export class ShareApiService {
 		if (localMatch) {
 			let path = decodeURIComponent(localMatch[1]);
 			if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1); // windows drive
-			const nodeRequire = (window as unknown as { require?: (m: string) => { readFileSync(p: string): Uint8Array } }).require;
+			const nodeRequire = (window as unknown as {
+				require?: (m: string) => { readFileSync(p: string): Uint8Array; existsSync(p: string): boolean; readdirSync(p: string): string[] };
+			}).require;
 			if (!nodeRequire) return null; // mobile: no filesystem access
-			const bytes = nodeRequire('fs').readFileSync(path);
+			const fs = nodeRequire('fs');
+			path = upgradeEagleThumbnail(path, fs);
+			const bytes = fs.readFileSync(path);
 			return {
 				buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
 				ext: extOf(path),
@@ -726,4 +730,34 @@ function textToBase64(text: string): string {
 	let binary = '';
 	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
 	return btoa(binary);
+}
+
+
+/**
+ * Eagle embeds usually point at the small `…_thumbnail.png` inside an
+ * `<id>.info` folder — the untouched original always sits next to it.
+ * Swap the path to the original when it exists.
+ */
+function upgradeEagleThumbnail(
+	path: string,
+	fs: { existsSync(p: string): boolean; readdirSync(p: string): string[] }
+): string {
+	const m = path.match(/^(.*)_thumbnail(\.[A-Za-z0-9]+)$/);
+	if (!m) return path;
+	try {
+		const direct = m[1] + m[2];
+		if (fs.existsSync(direct)) return direct;
+		// original may use a different extension — scan the .info folder
+		const slash = path.lastIndexOf('/');
+		const dir = path.slice(0, slash);
+		if (!dir.endsWith('.info')) return path;
+		const original = fs.readdirSync(dir).find(name =>
+			!/_thumbnail\./.test(name) &&
+			name !== 'metadata.json' &&
+			/\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(name)
+		);
+		return original ? `${dir}/${original}` : path;
+	} catch {
+		return path;
+	}
 }
