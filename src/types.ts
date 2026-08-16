@@ -6,6 +6,9 @@ export type EncryptionMode = 'auto' | 'always' | 'never';
 
 export type ShareTheme = 'cmds' | 'mono' | 'sepia' | 'ocean' | 'obsidian';
 
+/** Where the share title comes from (missing sources fall back to the file name). */
+export type TitleSource = 'filename' | 'h1' | 'alias' | 'frontmatter';
+
 /** One mode's worth of share-page colors. */
 export interface ThemeVars {
 	text: string;
@@ -125,6 +128,7 @@ export interface CMDSShareSettings {
 	activeProvider: ServerProviderType;
 	encryptionMode: EncryptionMode;
 	shareTheme: ShareTheme;
+	titleSource: TitleSource;
 	footerLinkUrl: string;
 	footerLinkLabel: string;
 	defaultExpiration: string;
@@ -155,6 +159,7 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	activeProvider: 'cloud',
 	encryptionMode: 'auto',
 	shareTheme: 'cmds',
+	titleSource: 'filename',
 	footerLinkUrl: '',
 	footerLinkLabel: '',
 	defaultExpiration: '',

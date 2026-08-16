@@ -69,6 +69,20 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 		containerEl.createEl('h3', { text: 'Sharing Options' });
 
 		new Setting(containerEl)
+			.setName('Share title source')
+			.setDesc('Where the shared page title comes from. Falls back to the file name when the chosen source is missing.')
+			.addDropdown(dropdown => dropdown
+				.addOption('filename', 'File name (default)')
+				.addOption('h1', 'First H1 heading')
+				.addOption('alias', 'First alias')
+				.addOption('frontmatter', 'Frontmatter title field')
+				.setValue(this.plugin.settings.titleSource || 'filename')
+				.onChange(async (value) => {
+					this.plugin.settings.titleSource = value as CMDSShareSettings['titleSource'];
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName('Share page theme')
 			.setDesc('Color palette for shared pages. "Follow my Obsidian theme" captures your current theme\'s colors at share time.')
 			.addDropdown(dropdown => dropdown

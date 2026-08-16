@@ -398,13 +398,23 @@ export default class CMDSSharePlugin extends Plugin {
 
 	private extractTitle(file: TFile, content: string): string {
 		const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-		if (fm?.title && typeof fm.title === 'string') {
-			return fm.title;
-		}
 
-		const h1Match = content.match(/^#\s+(.+)$/m);
-		if (h1Match) {
-			return h1Match[1].trim();
+		switch (this.settings.titleSource) {
+			case 'h1': {
+				const h1Match = content.match(/^#\s+(.+)$/m);
+				if (h1Match) return h1Match[1].trim();
+				break;
+			}
+			case 'alias': {
+				const aliases = fm?.aliases ?? fm?.alias;
+				const first = Array.isArray(aliases) ? aliases[0] : aliases;
+				if (first && typeof first === 'string' && first.trim()) return first.trim();
+				break;
+			}
+			case 'frontmatter': {
+				if (fm?.title && typeof fm.title === 'string' && fm.title.trim()) return fm.title.trim();
+				break;
+			}
 		}
 
 		return file.basename;
