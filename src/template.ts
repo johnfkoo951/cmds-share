@@ -76,6 +76,8 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 	const {
 		title,
 		palette,
+		themeName,
+		footerLink,
 		content,
 		url,
 		lang,
@@ -385,6 +387,11 @@ main {
 .cmds-meta img { width: 28px; height: 28px; border-radius: 50%; }
 .cmds-meta a { color: var(--accent); text-decoration: none; font-weight: 600; }
 .cmds-meta a:hover { text-decoration: underline; }
+.cmds-theme-note { font-size: 0.68rem; color: var(--muted); opacity: 0.75; }
+.cmds-author-link {
+	margin-top: 0.35rem; font-size: 0.85rem; font-weight: 700;
+	letter-spacing: -0.01em;
+}
 .cmds-loading { color: var(--muted); font-style: italic; }
 .decrypt-error {
 	color: #c62828; background: #fce4ec; padding: 1rem; border-radius: 8px;
@@ -424,7 +431,9 @@ ${cssLink}
 
 <footer class="cmds-meta">
 	<a href="https://cmdspace.work" target="_blank" rel="noopener"><img src="${LOGO_URL}" alt="CMDSPACE"></a>
-	<span>Shared via <a href="https://cmdspace.work" target="_blank" rel="noopener">CMDS Share</a></span>
+	<span>Shared via <a href="https://github.com/johnfkoo951/cmds-share" target="_blank" rel="noopener">CMDS Share</a></span>
+	<span class="cmds-theme-note">Theme: ${escapeHtml(themeName)}</span>
+	${footerLink ? `<a class="cmds-author-link" href="${escapeAttr(footerLink.url)}" target="_blank" rel="noopener">${escapeHtml(footerLink.label)}</a>` : ''}
 </footer>
 
 ${encryptedDataDiv}

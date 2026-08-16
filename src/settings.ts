@@ -84,6 +84,28 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName('Footer link (bio / landing URL)')
+			.setDesc('Shown at the very bottom of every shared page — your personal site, bio, or landing page. Leave empty to hide.')
+			.addText(text => text
+				.setPlaceholder('https://your-site.com')
+				.setValue(this.plugin.settings.footerLinkUrl)
+				.onChange(async (value) => {
+					this.plugin.settings.footerLinkUrl = value.trim();
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Footer link label')
+			.setDesc('Optional display text for the footer link. Defaults to the domain.')
+			.addText(text => text
+				.setPlaceholder('e.g. CMDSPACE')
+				.setValue(this.plugin.settings.footerLinkLabel)
+				.onChange(async (value) => {
+					this.plugin.settings.footerLinkLabel = value.trim();
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName('Encryption mode')
 			.setDesc('When to encrypt shared notes')
 			.addDropdown(dropdown => dropdown

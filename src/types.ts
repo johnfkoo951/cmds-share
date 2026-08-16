@@ -125,6 +125,8 @@ export interface CMDSShareSettings {
 	activeProvider: ServerProviderType;
 	encryptionMode: EncryptionMode;
 	shareTheme: ShareTheme;
+	footerLinkUrl: string;
+	footerLinkLabel: string;
 	defaultExpiration: string;
 	includeTheme: boolean;
 	removeBacklinks: boolean;
@@ -153,6 +155,8 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	activeProvider: 'cloud',
 	encryptionMode: 'auto',
 	shareTheme: 'cmds',
+	footerLinkUrl: '',
+	footerLinkLabel: '',
 	defaultExpiration: '',
 	includeTheme: true,
 	removeBacklinks: true,
@@ -230,6 +234,8 @@ export interface NoteGraphData {
 export interface NoteTemplateData {
 	title: string;
 	palette: ThemePalette;
+	themeName: string;
+	footerLink?: { url: string; label: string };
 	content: string;
 	url?: string;
 	lang: 'ko' | 'en';

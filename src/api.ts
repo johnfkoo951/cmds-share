@@ -122,6 +122,8 @@ export class ShareApiService {
 			const html = generateNoteHtml({
 				title,
 				palette: this.resolvePalette(),
+				themeName: this.themeDisplayName(app),
+				footerLink: this.footerLink(),
 				content: shouldEncrypt ? '' : htmlContent,
 				url: publicUrl,
 				lang: detectLang(shouldEncrypt ? title : `${title} ${content.slice(0, 2000)}`),
@@ -414,6 +416,25 @@ export class ShareApiService {
 	 * (outgoing links, backlinks, tags), edges BETWEEN those neighbors, and a
 	 * capped ring of second-degree notes — same shape as Obsidian's local graph.
 	 */
+	private footerLink(): { url: string; label: string } | undefined {
+		const url = (this.settings.footerLinkUrl || '').trim();
+		if (!url) return undefined;
+		let label = (this.settings.footerLinkLabel || '').trim();
+		if (!label) {
+			try { label = new URL(url).host; } catch { label = url; }
+		}
+		return { url, label };
+	}
+
+	private themeDisplayName(app: App): string {
+		const theme = this.settings.shareTheme || 'cmds';
+		if (theme === 'obsidian') {
+			const custom = (app as unknown as { customCss?: { theme?: string } }).customCss?.theme;
+			return custom ? `${custom} (Obsidian)` : 'Obsidian';
+		}
+		return { cmds: 'CMDS', mono: 'Mono', sepia: 'Sepia', ocean: 'Ocean' }[theme] || 'CMDS';
+	}
+
 	private resolvePalette(): ThemePalette {
 		const theme = this.settings.shareTheme || 'cmds';
 		if (theme === 'obsidian') {
