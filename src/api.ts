@@ -1,4 +1,4 @@
-import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags, setIcon } from 'obsidian';
+import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags, setIcon, requestUrl } from 'obsidian';
 import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType, NoteGraphData, ThemePalette, ThemeVars } from './types';
 import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
@@ -181,16 +181,13 @@ export class ShareApiService {
 		for (const match of matches) {
 			const src = match[1];
 			if (replacements.has(src)) continue;
-			if (/^(https?:|data:|\/\/)/.test(src)) continue;
-
-			const resolved = app.metadataCache.getFirstLinkpathDest(decodeURIComponent(src), sourceFile.path);
-			if (!resolved) continue;
+			if (/^data:/.test(src)) continue;
 
 			try {
-				const buffer = await app.vault.readBinary(resolved);
-				const ext = resolved.extension.toLowerCase();
-				const mime = ASSET_MIME[ext] || 'application/octet-stream';
-				const url = await this.uploadAssetBuffer(buffer, ext, mime);
+				const asset = await this.readImageSource(src, sourceFile, app);
+				if (!asset) continue;
+				const mime = ASSET_MIME[asset.ext] || 'application/octet-stream';
+				const url = await this.uploadAssetBuffer(asset.buffer, asset.ext, mime);
 				if (url) replacements.set(src, url);
 			} catch {
 				// skip — broken link
@@ -203,6 +200,53 @@ export class ShareApiService {
 			const replaced = replacements.get(src);
 			return replaced ? full.replace(src, replaced) : full;
 		});
+	}
+
+	/**
+	 * Turn an <img src> into uploadable bytes. Covers the three embed styles:
+	 * vault embeds (relative src), local absolute paths (file:// and Obsidian's
+	 * app:// rewrite — e.g. Eagle .library files), and localhost URLs (Eagle's
+	 * HTTP API). Public web URLs return null — they already work on the web.
+	 */
+	private async readImageSource(
+		src: string,
+		sourceFile: TFile,
+		app: App
+	): Promise<{ buffer: ArrayBuffer; ext: string } | null> {
+		const extOf = (path: string): string => {
+			const clean = path.split(/[?#]/)[0];
+			const ext = (clean.split('.').pop() || '').toLowerCase();
+			return /^[a-z0-9]{1,5}$/.test(ext) ? ext : 'png';
+		};
+
+		// localhost / loopback URLs (Eagle HTTP API etc.) — fetch and re-host
+		if (/^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0)(:|\/)/i.test(src)) {
+			const response = await requestUrl({ url: src, throw: false });
+			if (response.status < 200 || response.status >= 300) return null;
+			return { buffer: response.arrayBuffer, ext: extOf(src) };
+		}
+
+		// public web URLs stay as-is
+		if (/^(https?:)?\/\//.test(src)) return null;
+
+		// absolute local paths: file:///… or Obsidian's app://<id>/… rewrite
+		const localMatch = src.match(/^file:\/\/(.*)$/) || src.match(/^app:\/\/[^/]+(\/.*)$/);
+		if (localMatch) {
+			let path = decodeURIComponent(localMatch[1]);
+			if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1); // windows drive
+			const nodeRequire = (window as unknown as { require?: (m: string) => { readFileSync(p: string): Uint8Array } }).require;
+			if (!nodeRequire) return null; // mobile: no filesystem access
+			const bytes = nodeRequire('fs').readFileSync(path);
+			return {
+				buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+				ext: extOf(path),
+			};
+		}
+
+		// vault-relative embed
+		const resolved = app.metadataCache.getFirstLinkpathDest(decodeURIComponent(src), sourceFile.path);
+		if (!(resolved instanceof TFile)) return null;
+		return { buffer: await app.vault.readBinary(resolved), ext: resolved.extension.toLowerCase() };
 	}
 
 	private async uploadAssetBuffer(buffer: ArrayBuffer, ext: string, mime: string): Promise<string | null> {
