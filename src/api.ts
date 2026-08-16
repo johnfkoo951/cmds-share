@@ -562,18 +562,28 @@ const OBSIDIAN_VARS = [
 	'--code-background',
 ] as const;
 
+function normalizeCssValue(value: string): string {
+	return value.replace(/\s+/g, ' ').trim();
+}
+
+function readVars(el: Element): Record<string, string> {
+	const computed = getComputedStyle(el);
+	const out: Record<string, string> = {};
+	for (const name of OBSIDIAN_VARS) {
+		const value = normalizeCssValue(computed.getPropertyValue(name));
+		if (value) out[name] = value;
+	}
+	return out;
+}
+
+/** Best-effort read of the NON-active mode via a probe carrying the theme class.
+ * Themes that scope vars to body.theme-* defeat this — callers must sanity-check. */
 function probeThemeVars(mode: 'theme-light' | 'theme-dark'): Record<string, string> {
 	const probe = document.body.createDiv({ cls: mode });
 	probe.style.position = 'absolute';
 	probe.style.visibility = 'hidden';
 	try {
-		const computed = getComputedStyle(probe);
-		const out: Record<string, string> = {};
-		for (const name of OBSIDIAN_VARS) {
-			const value = computed.getPropertyValue(name).trim();
-			if (value) out[name] = value;
-		}
-		return out;
+		return readVars(probe);
 	} finally {
 		probe.remove();
 	}
@@ -615,10 +625,22 @@ function toVars(v: Record<string, string>, fallback: ThemeVars): ThemeVars {
 }
 
 function extractObsidianPalette(): ThemePalette {
-	return {
-		light: toVars(probeThemeVars('theme-light'), PALETTES.cmds.light),
-		dark: toVars(probeThemeVars('theme-dark'), PALETTES.cmds.dark),
+	const isDark = document.body.classList.contains('theme-dark');
+	// the ACTIVE mode reads exactly from live computed styles
+	const active = toVars(readVars(document.body), isDark ? PALETTES.cmds.dark : PALETTES.cmds.light);
+	// the other mode comes from a class probe — reject implausible results
+	const probed = toVars(
+		probeThemeVars(isDark ? 'theme-light' : 'theme-dark'),
+		isDark ? PALETTES.cmds.light : PALETTES.cmds.dark
+	);
+	const plausible = (vars: ThemeVars, mode: 'light' | 'dark'): ThemeVars => {
+		const lum = luminance(vars.bg);
+		const ok = mode === 'light' ? lum > 0.5 : lum < 0.5;
+		return ok ? vars : PALETTES.cmds[mode];
 	};
+	return isDark
+		? { light: plausible(probed, 'light'), dark: plausible(active, 'dark') }
+		: { light: plausible(active, 'light'), dark: plausible(probed, 'dark') };
 }
 
 

@@ -170,7 +170,7 @@ html { color-scheme: light dark; scroll-behavior: smooth; }
 html, body { overflow-x: hidden; }
 body {
 	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif;
-	color: var(--text); background: var(--bg); line-height: 1.7;
+	color: var(--text); background: var(--bg); line-height: 1.75;
 	font-size: 16px; -webkit-font-smoothing: antialiased;
 	transition: background-color .2s, color .2s;
 }
@@ -280,26 +280,27 @@ main {
 	font-weight: 700; letter-spacing: -0.02em; line-height: 1.3;
 	margin: 2rem 0 0.75rem; scroll-margin-top: 1.5rem;
 }
-#note-content h1 { font-size: 1.85rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--text); }
-#note-content h2 { font-size: 1.4rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+#note-content h1 { font-size: 1.85rem; margin-top: 2.4rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+#note-content h2 { font-size: 1.4rem; margin-top: 2.2rem; }
 #note-content h3 { font-size: 1.15rem; }
 #note-content h4 { font-size: 1rem; color: var(--muted); }
-#note-content p { margin: 0.75rem 0; }
-#note-content ul, #note-content ol { margin: 0.75rem 0 0.75rem 1.5rem; }
-#note-content li { margin: 0.25rem 0; }
+#note-content p { margin: 0.85rem 0; }
+#note-content ul, #note-content ol { margin: 0.85rem 0 0.85rem 1.4rem; }
+#note-content li { margin: 0.35rem 0; }
+#note-content li > ul, #note-content li > ol { margin: 0.25rem 0 0.25rem 1.2rem; }
 #note-content a {
 	color: var(--accent); text-decoration: none;
 	border-bottom: 1px solid transparent; transition: border-color .15s;
 }
 #note-content a:hover { border-bottom-color: var(--accent); }
 #note-content code {
-	background: var(--code-bg); padding: 0.15rem 0.4rem; border-radius: 4px;
-	font-size: 0.88em; font-family: 'SF Mono', 'Menlo', monospace;
+	background: var(--code-bg); padding: 0.18em 0.45em; border-radius: 6px;
+	font-size: 0.86em; font-family: 'SF Mono', 'Menlo', monospace;
 }
 #note-content pre {
 	background: var(--pre-bg); color: var(--pre-fg);
 	border: 1px solid var(--border);
-	padding: 1rem; border-radius: 8px;
+	padding: 1rem; border-radius: 12px;
 	overflow-x: auto; font-size: 0.85rem; line-height: 1.6;
 	font-family: 'SF Mono', 'Menlo', monospace; margin: 1rem 0;
 	position: relative;
@@ -327,6 +328,14 @@ main {
 #note-content h1:hover .h-anchor, #note-content h2:hover .h-anchor,
 #note-content h3:hover .h-anchor, #note-content h4:hover .h-anchor { opacity: 0.75; }
 #note-content pre code { background: transparent; padding: 0; font-size: 1em; }
+#note-content pre[data-lang]::before {
+	content: attr(data-lang);
+	position: absolute; top: 7px; left: 12px;
+	font-size: 0.66rem; font-weight: 600; letter-spacing: 0.05em;
+	color: var(--muted); opacity: 0.75; text-transform: lowercase;
+	font-family: -apple-system, sans-serif;
+}
+#note-content pre[data-lang] { padding-top: 1.9rem; }
 .mermaid-container { margin: 1rem 0; overflow-x: auto; text-align: center; }
 .mermaid-container svg { max-width: 100%; height: auto; }
 #note-content blockquote {
@@ -343,9 +352,11 @@ main {
 	overflow-x: auto;
 }
 #note-content th, #note-content td {
-	border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left;
+	border: none; border-bottom: 1px solid var(--border);
+	padding: 0.65rem 0.9rem; text-align: left; vertical-align: top;
 }
-#note-content th { background: var(--code-bg); font-weight: 700; }
+#note-content th { font-weight: 700; font-size: 0.85rem; color: var(--muted); border-bottom-width: 2px; }
+#note-content tr:last-child td { border-bottom: none; }
 #note-content hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 #note-content mark { background: rgba(233,133,162,0.25); padding: 0 0.2rem; border-radius: 3px; }
 #note-content .callout {
@@ -674,6 +685,9 @@ const PANELS_SCRIPT = `
 	function enhanceCodeBlocks() {
 		document.querySelectorAll('#note-content pre').forEach(function(pre) {
 			if (pre.querySelector('.code-copy')) return;
+			var code = pre.querySelector('code');
+			var langMatch = ((code ? code.className : '') + ' ' + pre.className).match(/language-([a-z0-9+#-]+)/i);
+			if (langMatch && langMatch[1] !== 'undefined') pre.setAttribute('data-lang', langMatch[1]);
 			var btn = document.createElement('button');
 			btn.className = 'code-copy';
 			btn.setAttribute('aria-label', 'Copy code');
