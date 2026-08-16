@@ -1,11 +1,10 @@
 {
-  "id": "cmds-share",
-  "name": "CMDS Share",
-  "version": "1.0.0",
-  "minAppVersion": "1.5.0",
-  "description": "Share Obsidian notes to the web instantly. Supports Cloud, Synology NAS, GitHub Pages, Supabase, and Convex backends with optional encryption.",
-  "author": "Yohan Koo",
-  "authorUrl": "https://github.com/yohankoo",
-  "isDesktopOnly": false,
-  "fundingUrl": "https://github.com/sponsors/yohankoo"
+	"id": "cmds-share",
+	"name": "CMDS Share",
+	"version": "2.0.0",
+	"minAppVersion": "1.5.0",
+	"description": "Share notes to the web instantly. Self-hostable or managed backends (CMDSPACE, Synology NAS, GitHub Pages, Supabase, Convex) with view counts, expiry, revocation, and optional end-to-end encryption.",
+	"author": "Yohan Koo (CMDSPACE)",
+	"authorUrl": "https://cmdspace.work",
+	"isDesktopOnly": false
 }
