@@ -254,7 +254,9 @@ export default class CMDSSharePlugin extends Plugin {
 		await this.updateFrontmatter(file, sharedNote);
 
 		await navigator.clipboard.writeText(result.url || '');
-		new Notice(existing ? 'Re-shared! URL copied' : 'Shared! URL copied to clipboard');
+		// say when a share will die — silent expiry surprised us once already
+		const expiryNote = expiresAt ? ` · expires ${response.expiration}` : '';
+		new Notice((existing ? 'Re-shared! URL copied' : 'Shared! URL copied') + expiryNote);
 	}
 
 	async deleteSharedNote(note: SharedNote): Promise<boolean> {
