@@ -20,8 +20,6 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl).setName('CMDS Share Settings').setHeading();
-
 		// Vault Identity
 		new Setting(containerEl).setName('Vault Identity').setHeading();
 
@@ -66,7 +64,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 		this.renderProviderSettings(containerEl);
 
 		// Sharing Options
-		new Setting(containerEl).setName('Sharing Options').setHeading();
+		new Setting(containerEl).setName('Sharing').setHeading();
 
 		new Setting(containerEl)
 			.setName('Share title source')
@@ -310,7 +308,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderCloudSettings(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName('CMDSPACE Settings').setHeading();
+		new Setting(containerEl).setName('CMDSPACE').setHeading();
 
 		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
 		infoEl.createEl('p', { text: 'CMDSPACE governance server — server-side share registry with view counts, expiry, and revocation. Paste your API token and enable.' });
@@ -355,7 +353,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderSynologySettings(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName('Synology NAS Settings').setHeading();
+		new Setting(containerEl).setName('Synology NAS').setHeading();
 
 		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
 		infoEl.createEl('p', { text: 'Host shared notes on your Synology NAS via WebDAV.' });
@@ -427,7 +425,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderGitHubSettings(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName('GitHub Pages Settings').setHeading();
+		new Setting(containerEl).setName('GitHub Pages').setHeading();
 
 		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
 		infoEl.createEl('p', { text: 'Host shared notes on GitHub Pages (free hosting).' });
@@ -506,7 +504,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderSupabaseSettings(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName('Supabase Settings').setHeading();
+		new Setting(containerEl).setName('Supabase').setHeading();
 
 		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
 		infoEl.createEl('p', { text: 'Host shared notes on Supabase Storage.' });
@@ -573,7 +571,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderConvexSettings(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName('Convex Settings').setHeading();
+		new Setting(containerEl).setName('Convex').setHeading();
 
 		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
 		infoEl.createEl('p', { text: 'Host shared notes on Convex serverless backend.' });

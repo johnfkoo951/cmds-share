@@ -374,7 +374,7 @@ export class ShareApiService {
 		// callout icons paint asynchronously in Obsidian, so the cloned/rendered
 		// DOM often carries an EMPTY <svg> — refill from the bundled icon set
 		root.querySelectorAll('.callout').forEach(callout => {
-			const iconEl = callout.querySelector('.callout-icon') as HTMLElement | null;
+			const iconEl = callout.querySelector<HTMLElement>('.callout-icon');
 			if (!iconEl) return;
 			const hasDrawnIcon = iconEl.querySelector('svg path, svg use, svg circle, svg rect, svg line, svg polyline, svg polygon');
 			if (hasDrawnIcon) return;
@@ -715,7 +715,7 @@ function injectMermaidSources(html: string, markdown: string): string {
 
 	const n = Math.min(candidates.length, sources.length);
 	for (let i = 0; i < n; i++) {
-		const holder = root.ownerDocument.createElement('div');
+		const holder = createDiv();
 		holder.className = 'mermaid-container';
 		holder.setAttribute('data-mmd', textToBase64(sources[i]));
 		candidates[i].replaceWith(holder);
