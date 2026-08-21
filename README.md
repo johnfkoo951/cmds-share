@@ -29,7 +29,7 @@ Part of the [CMDSPACE](https://cmdspace.work) ecosystem.
 | Synology NAS | You (WebDAV) | NAS credentials | ❌ (plain file hosting) | ❌ |
 | GitHub Pages | GitHub (your repo) | Personal access token | ❌ | ❌ |
 | Supabase | You (your project) | Project URL + anon key, public bucket | ❌ | ❌ |
-| Convex | You (your deployment) | Deploy `convex/` from this repo | expiry only | ❌ |
+| Convex | You (your deployment) | Deploy the Convex backend from [cmds-share-server](https://github.com/johnfkoo951/cmds-share-server/tree/main/convex-backend) | expiry only | ❌ |
 
 ### The CMDSPACE provider — read this before enabling
 

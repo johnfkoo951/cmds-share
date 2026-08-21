@@ -29,7 +29,7 @@
 | Synology NAS | 본인 (WebDAV) | NAS 계정 | ❌ (단순 파일 호스팅) | ❌ |
 | GitHub Pages | GitHub (본인 레포) | PAT 토큰 | ❌ | ❌ |
 | Supabase | 본인 (본인 프로젝트) | 프로젝트 URL + anon key | ❌ | ❌ |
-| Convex | 본인 (본인 배포) | 이 레포의 `convex/` 배포 | 만료만 | ❌ |
+| Convex | 본인 (본인 배포) | [cmds-share-server](https://github.com/johnfkoo951/cmds-share-server/tree/main/convex-backend)의 Convex 백엔드 배포 | 만료만 | ❌ |
 
 ### CMDSPACE 프로바이더 — 활성화 전에 꼭 읽어주세요
 
