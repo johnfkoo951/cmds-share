@@ -1,7 +1,7 @@
 {
 	"id": "cmds-share",
 	"name": "CMDS Share",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"minAppVersion": "1.5.0",
 	"description": "Share notes to the web instantly. Self-hostable or managed backends (CMDSPACE, Synology NAS, GitHub Pages, Supabase, Convex) with view counts, expiry, revocation, and optional end-to-end encryption.",
 	"author": "Yohan Koo (CMDSPACE)",
