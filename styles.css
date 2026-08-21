@@ -256,3 +256,9 @@
 	padding-top: 12px;
 	border-top: 1px solid var(--background-modifier-border);
 }
+
+.cmds-share-provider-info { margin-bottom: 12px; }
+.cmds-share-provider-info ol { margin: 4px 0 0; padding-left: 20px; }
+.cmds-share-footer-rule { margin: 24px 0; border: none; border-top: 1px solid var(--background-modifier-border); }
+.cmds-share-footer { text-align: center; color: var(--text-muted); font-size: 12px; }
+.cmds-share-footer-version { margin-bottom: 8px; }

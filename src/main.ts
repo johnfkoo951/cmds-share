@@ -1,9 +1,7 @@
 import {
 	Plugin,
-	MarkdownView,
 	Notice,
 	TFile,
-	WorkspaceLeaf,
 } from 'obsidian';
 import {
 	CMDSShareSettings,
@@ -18,14 +16,18 @@ import { CMSView } from './cms';
 import { ShareOptionsModal, ConfirmDeleteModal, SharedNotesModal } from './modals';
 import { generateShortId, sha256 } from './crypto';
 
+interface SavedData {
+	settings?: Partial<CMDSShareSettings>;
+	sharedNotes?: Record<string, SharedNote>;
+	providers?: unknown;
+}
+
 export default class CMDSSharePlugin extends Plugin {
 	settings: CMDSShareSettings;
 	api: ShareApiService;
 	private sharedNotes: Map<string, SharedNote> = new Map();
 
 	async onload(): Promise<void> {
-		console.log('[CMDS Share] Loading plugin v1.0.0');
-
 		await this.loadSettings();
 		this.api = new ShareApiService(this.settings);
 
@@ -40,7 +42,7 @@ export default class CMDSSharePlugin extends Plugin {
 				const file = this.app.workspace.getActiveFile();
 				if (file) {
 					if (!checking) {
-						this.shareNote(file);
+						void this.shareNote(file);
 					}
 					return true;
 				}
@@ -55,7 +57,7 @@ export default class CMDSSharePlugin extends Plugin {
 				const file = this.app.workspace.getActiveFile();
 				if (file && this.isNoteShared(file.path)) {
 					if (!checking) {
-						this.deleteCurrentSharedNote(file);
+						void this.deleteCurrentSharedNote(file);
 					}
 					return true;
 				}
@@ -82,7 +84,7 @@ export default class CMDSSharePlugin extends Plugin {
 			id: 'open-cms',
 			name: 'Open CMS dashboard',
 			callback: () => {
-				this.openCMS();
+				void this.openCMS();
 			},
 		});
 
@@ -99,9 +101,9 @@ export default class CMDSSharePlugin extends Plugin {
 		this.addRibbonIcon('share-2', 'CMDS Share', () => {
 			const file = this.app.workspace.getActiveFile();
 			if (file) {
-				this.shareNote(file);
+				void this.shareNote(file);
 			} else {
-				this.openCMS();
+				void this.openCMS();
 			}
 		});
 
@@ -112,7 +114,7 @@ export default class CMDSSharePlugin extends Plugin {
 						item
 							.setTitle('Share to web')
 							.setIcon('share-2')
-							.onClick(() => this.shareNote(file));
+							.onClick(() => { void this.shareNote(file); });
 					});
 
 					if (this.isNoteShared(file.path)) {
@@ -128,22 +130,21 @@ export default class CMDSSharePlugin extends Plugin {
 		);
 	}
 
-	onunload(): void {
-		console.log('[CMDS Share] Unloading plugin');
-		this.app.workspace.detachLeavesOfType(CMS_VIEW_TYPE);
-	}
+	onunload(): void {}
 
 	async loadSettings(): Promise<void> {
-		const data = await this.loadData();
-		const saved = data?.settings || data || {};
+		const data = (await this.loadData()) as SavedData | null;
+		const saved: Partial<CMDSShareSettings> = data?.settings || (data as Partial<CMDSShareSettings> | null) || {};
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
 		// deep-merge provider configs so new default fields survive old data.json files
 		this.settings.providers = { ...DEFAULT_SETTINGS.providers };
+		const savedProviders = (saved.providers ?? {}) as Partial<Record<keyof typeof DEFAULT_SETTINGS.providers, object>>;
+		const mergedProviders = this.settings.providers as unknown as Record<string, object>;
 		for (const key of Object.keys(DEFAULT_SETTINGS.providers) as (keyof typeof DEFAULT_SETTINGS.providers)[]) {
-			this.settings.providers[key] = Object.assign(
+			mergedProviders[key] = Object.assign(
 				{},
 				DEFAULT_SETTINGS.providers[key],
-				saved.providers?.[key]
+				savedProviders[key]
 			);
 		}
 		// old data.json files carry empty-string URLs for the cloud slot — treat as unset
@@ -190,7 +191,7 @@ export default class CMDSSharePlugin extends Plugin {
 	}
 
 	private async loadSharedNotes(): Promise<void> {
-		const data = await this.loadData();
+		const data = (await this.loadData()) as SavedData | null;
 		if (data?.sharedNotes) {
 			this.sharedNotes = new Map(Object.entries(data.sharedNotes));
 		}
@@ -328,7 +329,7 @@ export default class CMDSSharePlugin extends Plugin {
 	async openCMS(): Promise<void> {
 		const existing = this.app.workspace.getLeavesOfType(CMS_VIEW_TYPE);
 		if (existing.length > 0) {
-			this.app.workspace.revealLeaf(existing[0]);
+			await this.app.workspace.revealLeaf(existing[0]);
 			return;
 		}
 
@@ -338,7 +339,7 @@ export default class CMDSSharePlugin extends Plugin {
 				type: CMS_VIEW_TYPE,
 				active: true,
 			});
-			this.app.workspace.revealLeaf(leaf);
+			await this.app.workspace.revealLeaf(leaf);
 		}
 	}
 
@@ -437,7 +438,7 @@ export default class CMDSSharePlugin extends Plugin {
 	}
 
 	private async updateFrontmatter(file: TFile, note: SharedNote): Promise<void> {
-		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+		await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
 			frontmatter[this.settings.shareField] = true;
 			frontmatter[this.settings.linkField] = note.url;
 			
@@ -452,7 +453,7 @@ export default class CMDSSharePlugin extends Plugin {
 	}
 
 	private async removeFrontmatter(file: TFile): Promise<void> {
-		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+		await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
 			delete frontmatter[this.settings.shareField];
 			delete frontmatter[this.settings.linkField];
 			delete frontmatter[this.settings.encryptedField];

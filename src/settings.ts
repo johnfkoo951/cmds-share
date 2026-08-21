@@ -20,10 +20,10 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		containerEl.createEl('h2', { text: 'CMDS Share Settings' });
+		new Setting(containerEl).setName('CMDS Share Settings').setHeading();
 
 		// Vault Identity
-		containerEl.createEl('h3', { text: 'Vault Identity' });
+		new Setting(containerEl).setName('Vault Identity').setHeading();
 
 		new Setting(containerEl)
 			.setName('Vault display name')
@@ -44,7 +44,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				.setDisabled(true));
 
 		// Provider Selection
-		containerEl.createEl('h3', { text: 'Server Provider' });
+		new Setting(containerEl).setName('Server Provider').setHeading();
 
 		new Setting(containerEl)
 			.setName('Active provider')
@@ -66,7 +66,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 		this.renderProviderSettings(containerEl);
 
 		// Sharing Options
-		containerEl.createEl('h3', { text: 'Sharing Options' });
+		new Setting(containerEl).setName('Sharing Options').setHeading();
 
 		new Setting(containerEl)
 			.setName('Share title source')
@@ -189,7 +189,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				}));
 
 		// Frontmatter Fields
-		containerEl.createEl('h3', { text: 'Frontmatter Fields' });
+		new Setting(containerEl).setName('Frontmatter Fields').setHeading();
 
 		new Setting(containerEl)
 			.setName('Share field')
@@ -236,7 +236,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				}));
 
 		// CMS Settings
-		containerEl.createEl('h3', { text: 'CMS Dashboard' });
+		new Setting(containerEl).setName('CMS Dashboard').setHeading();
 
 		new Setting(containerEl)
 			.setName('Enable CMS dashboard')
@@ -259,7 +259,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				}));
 
 		// Debug
-		containerEl.createEl('h3', { text: 'Advanced' });
+		new Setting(containerEl).setName('Advanced').setHeading();
 
 		new Setting(containerEl)
 			.setName('Debug mode')
@@ -272,10 +272,10 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				}));
 
 		// Footer
-		containerEl.createEl('hr', { attr: { style: 'margin: 24px 0; border: none; border-top: 1px solid var(--background-modifier-border);' } });
-		
-		const footerEl = containerEl.createEl('div', { attr: { style: 'text-align: center; color: var(--text-muted); font-size: 12px;' } });
-		footerEl.createEl('div', { text: `CMDS Share v${this.plugin.manifest.version}`, attr: { style: 'margin-bottom: 8px;' } });
+		containerEl.createEl('hr', { cls: 'cmds-share-footer-rule' });
+
+		const footerEl = containerEl.createEl('div', { cls: 'cmds-share-footer' });
+		footerEl.createEl('div', { text: `CMDS Share v${this.plugin.manifest.version}`, cls: 'cmds-share-footer-version' });
 		
 		const linksEl = footerEl.createEl('div');
 		linksEl.createSpan({ text: 'CMDSPACE ' });
@@ -310,13 +310,10 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderCloudSettings(containerEl: HTMLElement): void {
-		containerEl.createEl('h4', { text: 'CMDSPACE Settings' });
+		new Setting(containerEl).setName('CMDSPACE Settings').setHeading();
 
-		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description' });
-		infoEl.style.marginBottom = '12px';
-		infoEl.innerHTML = `
-			<p style="margin: 0 0 8px 0;">CMDSPACE governance server — server-side share registry with view counts, expiry, and revocation. Paste your API token and enable.</p>
-		`;
+		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
+		infoEl.createEl('p', { text: 'CMDSPACE governance server — server-side share registry with view counts, expiry, and revocation. Paste your API token and enable.' });
 
 		new Setting(containerEl)
 			.setName('Enabled')
@@ -358,13 +355,10 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderSynologySettings(containerEl: HTMLElement): void {
-		containerEl.createEl('h4', { text: 'Synology NAS Settings' });
+		new Setting(containerEl).setName('Synology NAS Settings').setHeading();
 
-		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description' });
-		infoEl.style.marginBottom = '12px';
-		infoEl.innerHTML = `
-			<p style="margin: 0 0 8px 0;">Host shared notes on your Synology NAS via WebDAV.</p>
-		`;
+		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
+		infoEl.createEl('p', { text: 'Host shared notes on your Synology NAS via WebDAV.' });
 
 		new Setting(containerEl)
 			.setName('Enabled')
@@ -433,18 +427,14 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderGitHubSettings(containerEl: HTMLElement): void {
-		containerEl.createEl('h4', { text: 'GitHub Pages Settings' });
+		new Setting(containerEl).setName('GitHub Pages Settings').setHeading();
 
-		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description' });
-		infoEl.style.marginBottom = '12px';
-		infoEl.innerHTML = `
-			<p style="margin: 0 0 8px 0;">Host shared notes on GitHub Pages (free hosting).</p>
-			<ol style="margin: 0; padding-left: 20px;">
-				<li>Create a repository for your shared notes</li>
-				<li>Enable GitHub Pages in repo settings</li>
-				<li>Generate a personal access token with repo scope</li>
-			</ol>
-		`;
+		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
+		infoEl.createEl('p', { text: 'Host shared notes on GitHub Pages (free hosting).' });
+		const stepsEl = infoEl.createEl('ol');
+		stepsEl.createEl('li', { text: 'Create a repository for your shared notes' });
+		stepsEl.createEl('li', { text: 'Enable GitHub Pages in repo settings' });
+		stepsEl.createEl('li', { text: 'Generate a personal access token with repo scope' });
 
 		new Setting(containerEl)
 			.setName('Enabled')
@@ -516,18 +506,14 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderSupabaseSettings(containerEl: HTMLElement): void {
-		containerEl.createEl('h4', { text: 'Supabase Settings' });
+		new Setting(containerEl).setName('Supabase Settings').setHeading();
 
-		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description' });
-		infoEl.style.marginBottom = '12px';
-		infoEl.innerHTML = `
-			<p style="margin: 0 0 8px 0;">Host shared notes on Supabase Storage.</p>
-			<ol style="margin: 0; padding-left: 20px;">
-				<li>Create a Supabase project</li>
-				<li>Create a public storage bucket</li>
-				<li>Copy project URL and anon key from settings</li>
-			</ol>
-		`;
+		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
+		infoEl.createEl('p', { text: 'Host shared notes on Supabase Storage.' });
+		const stepsEl = infoEl.createEl('ol');
+		stepsEl.createEl('li', { text: 'Create a Supabase project' });
+		stepsEl.createEl('li', { text: 'Create a public storage bucket' });
+		stepsEl.createEl('li', { text: 'Copy project URL and anon key from settings' });
 
 		new Setting(containerEl)
 			.setName('Enabled')
@@ -587,13 +573,10 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 	}
 
 	private renderConvexSettings(containerEl: HTMLElement): void {
-		containerEl.createEl('h4', { text: 'Convex Settings' });
+		new Setting(containerEl).setName('Convex Settings').setHeading();
 
-		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description' });
-		infoEl.style.marginBottom = '12px';
-		infoEl.innerHTML = `
-			<p style="margin: 0 0 8px 0;">Host shared notes on Convex serverless backend.</p>
-		`;
+		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
+		infoEl.createEl('p', { text: 'Host shared notes on Convex serverless backend.' });
 
 		new Setting(containerEl)
 			.setName('Enabled')

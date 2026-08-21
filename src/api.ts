@@ -242,7 +242,7 @@ export class ShareApiService {
 			path = upgradeEagleThumbnail(path, fs);
 			const bytes = fs.readFileSync(path);
 			return {
-				buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+				buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
 				ext: extOf(path),
 			};
 		}
@@ -441,7 +441,7 @@ export class ShareApiService {
 			text = text.replace(/^---\n[\s\S]*?\n---\n?/, '');
 		}
 
-		const el = document.createElement('div');
+		const el = createDiv();
 		const component = new Component();
 		component.load();
 		try {
@@ -500,7 +500,7 @@ export class ShareApiService {
 		const MAX_NODES = 42;
 
 		const mc = app.metadataCache;
-		const resolved = mc.resolvedLinks as Record<string, Record<string, number>>;
+		const resolved: Record<string, Record<string, number>> = mc.resolvedLinks;
 		const basename = (path: string) => (path.split('/').pop() || path).replace(/\.md$/, '');
 
 		const nodes: { id: string; label: string; type: 'note' | 'tag'; level: number }[] = [];
@@ -628,8 +628,7 @@ function readVars(el: Element): Record<string, string> {
  * Themes that scope vars to body.theme-* defeat this — callers must sanity-check. */
 function probeThemeVars(mode: 'theme-light' | 'theme-dark'): Record<string, string> {
 	const probe = document.body.createDiv({ cls: mode });
-	probe.style.position = 'absolute';
-	probe.style.visibility = 'hidden';
+	probe.setCssStyles({ position: 'absolute', visibility: 'hidden' });
 	try {
 		return readVars(probe);
 	} finally {
@@ -701,8 +700,7 @@ function injectMermaidSources(html: string, markdown: string): string {
 	while ((m = fence.exec(markdown)) !== null) sources.push(m[1].trimEnd());
 	if (sources.length === 0) return html;
 
-	const root = document.createElement('div');
-	root.innerHTML = html;
+	const root = new DOMParser().parseFromString(html, 'text/html').body;
 
 	// candidates in document order, covering both render paths
 	const candidates: Element[] = [];
@@ -717,7 +715,7 @@ function injectMermaidSources(html: string, markdown: string): string {
 
 	const n = Math.min(candidates.length, sources.length);
 	for (let i = 0; i < n; i++) {
-		const holder = document.createElement('div');
+		const holder = root.ownerDocument.createElement('div');
 		holder.className = 'mermaid-container';
 		holder.setAttribute('data-mmd', textToBase64(sources[i]));
 		candidates[i].replaceWith(holder);

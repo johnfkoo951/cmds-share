@@ -19,7 +19,7 @@ import { ConfirmDeleteModal } from './modals';
 
 export class CMSView extends ItemView {
 	plugin: CMDSSharePlugin;
-	private refreshInterval: ReturnType<typeof setInterval> | null = null;
+	private refreshInterval: number | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: CMDSSharePlugin) {
 		super(leaf);
@@ -52,14 +52,14 @@ export class CMSView extends ItemView {
 
 	private startAutoRefresh(): void {
 		this.stopAutoRefresh();
-		this.refreshInterval = setInterval(() => {
-			this.render();
+		this.refreshInterval = window.setInterval(() => {
+			void this.render();
 		}, 60000);
 	}
 
 	private stopAutoRefresh(): void {
 		if (this.refreshInterval) {
-			clearInterval(this.refreshInterval);
+			window.clearInterval(this.refreshInterval);
 			this.refreshInterval = null;
 		}
 	}
@@ -112,12 +112,14 @@ export class CMSView extends ItemView {
 				text: 'Delete from server',
 				cls: 'cmds-share-cms-btn cmds-share-cms-btn-small cmds-share-cms-btn-danger',
 			});
-			deleteBtn.addEventListener('click', async () => {
-				const provider = this.plugin.api.getActiveProvider();
-				if (!provider) return;
-				const result = await provider.delete(`${orphan.shortId}.html`);
-				new Notice(result.success ? 'Deleted from server' : 'Delete failed');
-				await this.render();
+			deleteBtn.addEventListener('click', () => {
+				void (async () => {
+					const provider = this.plugin.api.getActiveProvider();
+					if (!provider) return;
+					const result = await provider.delete(`${orphan.shortId}.html`);
+					new Notice(result.success ? 'Deleted from server' : 'Delete failed');
+					await this.render();
+				})();
 			});
 		});
 	}
@@ -151,7 +153,7 @@ export class CMSView extends ItemView {
 			text: 'Refresh',
 			cls: 'cmds-share-cms-btn'
 		});
-		refreshBtn.addEventListener('click', () => this.render());
+		refreshBtn.addEventListener('click', () => { void this.render(); });
 
 		const provider = this.plugin.settings.activeProvider;
 		const providerBadge = header.createDiv({ cls: 'cmds-share-cms-provider-badge' });
@@ -208,9 +210,9 @@ export class CMSView extends ItemView {
 			cls: 'cmds-share-cms-item-title',
 			href: '#'
 		});
-		titleLink.addEventListener('click', async (e) => {
+		titleLink.addEventListener('click', (e) => {
 			e.preventDefault();
-			await this.openNote(note);
+			void this.openNote(note);
 		});
 
 		if (note.encrypted) {
@@ -252,9 +254,8 @@ export class CMSView extends ItemView {
 			text: 'Copy URL',
 			cls: 'cmds-share-cms-btn cmds-share-cms-btn-small'
 		});
-		copyBtn.addEventListener('click', async () => {
-			await navigator.clipboard.writeText(note.url);
-			new Notice('URL copied to clipboard');
+		copyBtn.addEventListener('click', () => {
+			void navigator.clipboard.writeText(note.url).then(() => new Notice('URL copied to clipboard'));
 		});
 
 		const openBtn = actionsRow.createEl('button', { 
@@ -269,11 +270,13 @@ export class CMSView extends ItemView {
 			text: 'Delete',
 			cls: 'cmds-share-cms-btn cmds-share-cms-btn-small cmds-share-cms-btn-danger'
 		});
-		deleteBtn.addEventListener('click', async () => {
-			const confirmed = await this.confirmDelete(note);
-			if (confirmed) {
-				await this.deleteNote(note);
-			}
+		deleteBtn.addEventListener('click', () => {
+			void (async () => {
+				const confirmed = await this.confirmDelete(note);
+				if (confirmed) {
+					await this.deleteNote(note);
+				}
+			})();
 		});
 
 		item.addEventListener('contextmenu', (e) => {

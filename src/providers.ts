@@ -1,4 +1,4 @@
-import { requestUrl, RequestUrlParam } from 'obsidian';
+import { requestUrl } from 'obsidian';
 import {
 	AnyProviderConfig,
 	CloudProviderConfig,
@@ -61,7 +61,7 @@ export class CmdspaceProvider implements ServerProvider {
 	}
 
 	async upload(content: string, filename: string, mimeType: string, meta?: ShareMeta): Promise<UploadResult> {
-		const body = new TextEncoder().encode(content).buffer as ArrayBuffer;
+		const body = new TextEncoder().encode(content).buffer;
 		return this.uploadBytes(body, filename, mimeType, meta);
 	}
 
@@ -140,7 +140,8 @@ export class CmdspaceProvider implements ServerProvider {
 		if (response.status !== 200) {
 			throw new Error(`List failed (${response.status})`);
 		}
-		return response.json?.notes || [];
+		const payload = response.json as { notes?: RemoteNoteMeta[] } | undefined;
+		return payload?.notes || [];
 	}
 
 	async revoke(shortId: string, revoked: boolean): Promise<DeleteResult> {
@@ -475,7 +476,7 @@ export class GitHubProvider implements ServerProvider {
 				},
 			});
 			if (response.status === 200) {
-				return response.json.sha;
+				return (response.json as { sha?: string }).sha ?? null;
 			}
 		} catch {
 			// File doesn't exist
@@ -618,16 +619,15 @@ export class ConvexProvider implements ServerProvider {
 				return { success: false, error: `Convex error (${response.status}): ${response.text}` };
 			}
 
-			const result = response.json;
+			const result = response.json as { status?: string; errorMessage?: string; value?: { id?: string } };
 			if (result.status === 'error') {
 				return { success: false, error: result.errorMessage || 'Convex mutation failed' };
 			}
 
-			const value = result.value ?? result;
 			return {
 				success: true,
 				url: this.getPublicUrl(filename),
-				key: value.id || filename,
+				key: result.value?.id || filename,
 			};
 		} catch (error) {
 			return {
@@ -660,7 +660,7 @@ export class ConvexProvider implements ServerProvider {
 				return { success: false, error: `Convex error (${response.status})` };
 			}
 
-			const result = response.json;
+			const result = response.json as { status?: string; errorMessage?: string };
 			if (result.status === 'error') {
 				return { success: false, error: result.errorMessage };
 			}
@@ -693,7 +693,7 @@ export class ConvexProvider implements ServerProvider {
 
 			if (response.status < 200 || response.status >= 300) return false;
 
-			const result = response.json;
+			const result = response.json as { status?: string; value?: { status?: string } };
 			return result.status === 'success' || result.value?.status === 'ok';
 		} catch {
 			return false;
@@ -720,15 +720,15 @@ export class ConvexProvider implements ServerProvider {
 export function createServerProvider(config: AnyProviderConfig): ServerProvider | null {
 	switch (config.type) {
 		case 'cloud':
-			return new CmdspaceProvider(config as CloudProviderConfig);
+			return new CmdspaceProvider(config);
 		case 'synology':
-			return new SynologyProvider(config as SynologyProviderConfig);
+			return new SynologyProvider(config);
 		case 'github':
-			return new GitHubProvider(config as GitHubProviderConfig);
+			return new GitHubProvider(config);
 		case 'supabase':
-			return new SupabaseProvider(config as SupabaseProviderConfig);
+			return new SupabaseProvider(config);
 		case 'convex':
-			return new ConvexProvider(config as ConvexProviderConfig);
+			return new ConvexProvider(config);
 		default:
 			return null;
 	}

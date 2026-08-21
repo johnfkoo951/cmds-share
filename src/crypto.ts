@@ -86,7 +86,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 function arrayBufferToHex(buffer: ArrayBuffer): string {
 	const bytes = new Uint8Array(buffer);
 	return Array.from(bytes)
-		.map(b => b.toString(16).padStart(2, '0'))
+		.map((b: number) => b.toString(16).padStart(2, '0'))
 		.join('');
 }
 

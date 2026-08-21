@@ -3,7 +3,6 @@ import {
 	Modal,
 	Setting,
 	FuzzySuggestModal,
-	TFile,
 } from 'obsidian';
 import { CMDSShareSettings, SharedNote, PROVIDER_DISPLAY_NAMES } from './types';
 
