@@ -250,6 +250,10 @@ export interface NoteTemplateData {
 	encryptedData?: string;
 	description?: string;
 	graph?: NoteGraphData;
+	/** Raw markdown source (frontmatter-stripped per settings). Encrypted shares carry it inside the encrypted payload instead. */
+	markdown?: string;
+	/** Epoch ms — page shows a live D-day countdown when set. */
+	expiresAt?: number;
 }
 
 export interface CMSStats {

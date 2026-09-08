@@ -312,6 +312,13 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 
 		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
 		infoEl.createEl('p', { text: 'CMDSPACE governance server — server-side share registry with view counts, expiry, and revocation. Paste your API token and enable.' });
+		const inviteEl = infoEl.createEl('p');
+		inviteEl.createEl('strong', { text: 'Invite-only: ' });
+		inviteEl.appendText('this is the maintainer’s personal instance and requires a token issued by the maintainer — there is no sign-up. Request one via a GitHub issue titled “Token request”, or self-host your own server (free, ~10 min) and point the Server URL below at it. Other backends (NAS, GitHub Pages, Supabase, Convex) need no token from anyone.');
+		const issueLink = infoEl.createEl('p');
+		issueLink.createEl('a', { text: 'Token request → GitHub issues', href: 'https://github.com/johnfkoo951/cmds-share/issues' });
+		issueLink.appendText('  ·  ');
+		issueLink.createEl('a', { text: 'Self-host guide → cmds-share-server', href: 'https://github.com/johnfkoo951/cmds-share-server' });
 
 		new Setting(containerEl)
 			.setName('Enabled')

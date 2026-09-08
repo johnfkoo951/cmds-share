@@ -87,6 +87,8 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 		encryptedData,
 		description,
 		graph,
+		markdown,
+		expiresAt,
 	} = data;
 
 	const safeTitle = escapeHtml(title);
@@ -110,6 +112,24 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 
 	const graphDataDiv = graph
 		? `<script type="application/json" id="graph-data">${escapeJson(JSON.stringify(graph))}</script>`
+		: '';
+
+	// base64 keeps the raw markdown inert inside the HTML (no </script> risk)
+	const mdSourceDiv = markdown != null
+		? `<script type="text/plain" id="md-source">${textToBase64(markdown)}</script>`
+		: '';
+
+	const ICON_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+	const ICON_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+	const e2eBadge = encrypted
+		? `<span class="cmds-badge b-e2e">${ICON_LOCK}${lang === 'ko' ? '종단간 암호화' : 'End-to-end encrypted'}</span>`
+		: '';
+	// countdown is computed at view time so the number stays honest
+	const expiryBadge = expiresAt
+		? `<span class="cmds-badge" id="expiryBadge" data-expires="${expiresAt}" data-lang="${lang}" hidden>${ICON_CLOCK}<span id="expiryText"></span></span>`
+		: '';
+	const badgesHtml = e2eBadge || expiryBadge
+		? `<div class="cmds-badges">${e2eBadge}${expiryBadge}</div>`
 		: '';
 
 	const decryptionScript = encrypted ? DECRYPTION_SCRIPT : '';
@@ -398,6 +418,17 @@ main {
 	display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
 }
 .cmds-meta img { width: 28px; height: 28px; border-radius: 50%; }
+.cmds-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+.cmds-badge {
+	display: inline-flex; align-items: center; gap: 0.35em;
+	font-size: 0.7rem; font-weight: 600; color: var(--muted);
+	border: 1px solid var(--border); border-radius: 999px;
+	padding: 0.22rem 0.65rem; background: var(--card-bg);
+}
+.cmds-badge svg { width: 12px; height: 12px; }
+.cmds-badge.b-e2e { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.cmds-badge.b-soon { color: #e0813a; border-color: color-mix(in srgb, #e0813a 45%, var(--border)); }
+.cmds-badge.b-expired { color: #e05252; border-color: color-mix(in srgb, #e05252 45%, var(--border)); }
 .cmds-meta a { color: var(--accent); text-decoration: none; font-weight: 600; }
 .cmds-meta a:hover { text-decoration: underline; }
 .cmds-theme-note { font-size: 0.68rem; color: var(--muted); opacity: 0.75; }
@@ -430,6 +461,12 @@ ${cssLink}
 	<button class="tool-btn" id="graphToggle" aria-label="Local graph" hidden>
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M10.8 6.9 6.2 16m7-9.1 4.6 9.1M7.2 18h9.6"/></svg>
 	</button>
+	<button class="tool-btn" id="mdCopy" aria-label="Copy markdown" title="Copy markdown" hidden>
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15H4.5A2.5 2.5 0 0 1 2 12.5v-8A2.5 2.5 0 0 1 4.5 2h8A2.5 2.5 0 0 1 15 4.5V5"/></svg>
+	</button>
+	<button class="tool-btn" id="mdDownload" aria-label="Download markdown" title="Download .md" hidden>
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4 19h16"/></svg>
+	</button>
 </div>
 
 <div class="side-dock" id="sideDock" hidden></div>
@@ -443,6 +480,7 @@ ${cssLink}
 </main>
 
 <footer class="cmds-meta">
+	${badgesHtml}
 	<a href="https://cmdspace.work" target="_blank" rel="noopener"><img src="${LOGO_URL}" alt="CMDSPACE"></a>
 	<span>Shared via <a href="https://github.com/johnfkoo951/cmds-share" target="_blank" rel="noopener">CMDS Share</a></span>
 	<span class="cmds-theme-note">Theme: ${escapeHtml(themeName)}</span>
@@ -451,12 +489,13 @@ ${cssLink}
 
 ${encryptedDataDiv}
 ${graphDataDiv}
+${mdSourceDiv}
 ${decryptionScript}
 
 <script type="module">
 (async function() {
 	// mermaid sources travel base64-encoded in data-mmd; render with the LATEST mermaid
-	if (document.getElementById('encrypted-data')) {
+	if (document.getElementById('encrypted-data') && !window.__cmdsReady) {
 		await new Promise(function(r) { document.addEventListener('cmds-content-ready', r, { once: true }); });
 	}
 	var containers = Array.from(document.querySelectorAll('.mermaid-container[data-mmd]'));
@@ -519,6 +558,40 @@ ${decryptionScript}
 })();
 </script>
 
+<script>
+(function() {
+	var badge = document.getElementById('expiryBadge');
+	if (!badge) return;
+	var ts = Number(badge.getAttribute('data-expires'));
+	if (!ts) return;
+	var ko = badge.getAttribute('data-lang') === 'ko';
+	var text = document.getElementById('expiryText');
+	function render() {
+		var msLeft = ts - Date.now();
+		var d = new Date(ts);
+		var dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+		if (msLeft <= 0) {
+			text.textContent = ko ? '만료됨' : 'Expired';
+			badge.classList.add('b-expired');
+		} else {
+			// calendar-date diff, so "D-1" flips at midnight, not at share-time+24h
+			var now = new Date();
+			var days = Math.round(
+				(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() -
+				 new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86400000
+			);
+			var count = days <= 0 ? (ko ? '오늘 만료' : 'expires today') : 'D-' + days;
+			text.textContent = (ko ? dateStr + ' 만료 · ' : 'Expires ' + dateStr + ' · ') + count;
+			if (days <= 3) badge.classList.add('b-soon');
+		}
+		badge.hidden = false;
+	}
+	render();
+	// keep honest across long-lived tabs (midnight rollover)
+	setInterval(render, 60 * 60 * 1000);
+})();
+</script>
+
 ${PANELS_SCRIPT}
 </body>
 </html>`;
@@ -569,11 +642,25 @@ const DECRYPTION_SCRIPT = `
 		const target = document.getElementById('note-content');
 		target.innerHTML = data.content;
 		if (data.title) document.title = data.title;
+		if (data.markdown != null) window.__cmdsMd = data.markdown;
+		// flag + event: later scripts may execute AFTER decryption already
+		// finished (tiny payloads decrypt within microtask checkpoints), so
+		// waiters must check the flag before subscribing
+		window.__cmdsReady = true;
 		document.dispatchEvent(new Event('cmds-content-ready'));
 	} catch (err) {
 		console.error('Decryption failed:', err);
 		const target = document.getElementById('note-content');
-		if (target) target.innerHTML = '<div class="decrypt-error">Failed to decrypt note. Check the URL fragment.</div>';
+		const ko = document.documentElement.lang === 'ko';
+		const noKey = !window.location.hash.slice(1);
+		const msg = noKey
+			? (ko
+				? '이 노트는 종단간 암호화되어 있습니다. 주소 뒤 <code>#키</code>까지 포함된 전체 링크로 열어야 내용이 보입니다. 서버에는 키가 없어 대시보드 링크로는 열 수 없습니다.'
+				: 'This note is end-to-end encrypted. Open the complete link including the <code>#key</code> fragment — the server never has the key, so dashboard links cannot open it.')
+			: (ko
+				? '복호화에 실패했습니다. 링크의 <code>#키</code>가 정확한지 확인하세요. 노트를 다시 공유하면 키가 바뀌므로 이전 링크는 더 이상 열리지 않습니다.'
+				: 'Failed to decrypt. Check the <code>#key</code> in the link — re-sharing a note rotates the key, so older links stop working.');
+		if (target) target.innerHTML = '<div class="decrypt-error">' + msg + '</div>';
 	}
 })();
 </script>
@@ -724,6 +811,52 @@ const PANELS_SCRIPT = `
 			});
 			h.appendChild(a);
 		});
+	}
+
+	// ══════════ markdown source tools (copy / download) ══════════
+	function mdSource() {
+		if (window.__cmdsMd != null) return window.__cmdsMd; // decrypted payload
+		var el = document.getElementById('md-source');
+		if (!el) return null;
+		try {
+			var bin = atob(el.textContent.trim());
+			var bytes = new Uint8Array(bin.length);
+			for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+			return new TextDecoder().decode(bytes);
+		} catch(e) { return null; }
+	}
+
+	function wireMdTools() {
+		var md = mdSource();
+		if (md == null) return;
+		var copyBtn = document.getElementById('mdCopy');
+		var dlBtn = document.getElementById('mdDownload');
+		if (copyBtn) {
+			copyBtn.hidden = false;
+			var idle = copyBtn.innerHTML;
+			copyBtn.addEventListener('click', function() {
+				navigator.clipboard.writeText(md).then(function() {
+					copyBtn.innerHTML = ICON_CHECK;
+					copyBtn.classList.add('active');
+					setTimeout(function() { copyBtn.innerHTML = idle; copyBtn.classList.remove('active'); }, 1500);
+				});
+			});
+		}
+		if (dlBtn) {
+			dlBtn.hidden = false;
+			dlBtn.addEventListener('click', function() {
+				var name = (document.title || 'note').replace(/[\\\\/:*?"<>|]/g, '-').trim() || 'note';
+				var blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+				var url = URL.createObjectURL(blob);
+				var a = document.createElement('a');
+				a.href = url;
+				a.download = name + '.md';
+				document.body.appendChild(a);
+				a.click();
+				a.remove();
+				setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+			});
+		}
 	}
 
 	// ══════════ interactive force-directed local graph ══════════
@@ -991,6 +1124,7 @@ const PANELS_SCRIPT = `
 		assignHeadingIds();
 		enhanceCodeBlocks();
 		headingAnchors();
+		wireMdTools();
 		hasToc = buildToc();
 		if (hasToc) {
 			document.getElementById('tocToggle').hidden = false;
@@ -1029,7 +1163,7 @@ const PANELS_SCRIPT = `
 		} catch(e) {}
 	}
 
-	if (document.getElementById('encrypted-data')) {
+	if (document.getElementById('encrypted-data') && !window.__cmdsReady) {
 		document.addEventListener('cmds-content-ready', init, { once: true });
 	} else {
 		init();
@@ -1053,4 +1187,11 @@ function escapeAttr(text: string): string {
 
 function escapeJson(text: string): string {
 	return String(text).replace(/<\/script/gi, '<\\/script');
+}
+
+function textToBase64(text: string): string {
+	const bytes = new TextEncoder().encode(text);
+	let binary = '';
+	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+	return btoa(binary);
 }

@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - img "CMDSPACE" [ref=e4]
+      - generic [ref=e5]:
+        - heading "CMDS Share" [level=1] [ref=e6]
+        - generic [ref=e7]: Instant note sharing for Obsidian — governed by CMDSPACE
+    - generic [ref=e8]:
+      - paragraph [ref=e9]: This is the share dashboard. Paste your API token to manage your shared notes — the same token configured in the CMDS Share plugin settings.
+      - generic [ref=e10]:
+        - textbox "API token" [ref=e11]
+        - button "Open" [ref=e12] [cursor=pointer]
+      - paragraph [ref=e13]:
+        - text: No token? The CMDSPACE-hosted server is invite-only —
+        - link "see hosting options" [ref=e14] [cursor=pointer]:
+          - /url: https://github.com/johnfkoo951/cmds-share#hosting-options
+        - text: for self-hosting and other backends.
+    - generic [ref=e15]:
+      - link "CMDS Share plugin" [ref=e16] [cursor=pointer]:
+        - /url: https://github.com/johnfkoo951/cmds-share
+      - text: ·
+      - link "cmdspace.work" [ref=e17] [cursor=pointer]:
+        - /url: https://cmdspace.work
+  - alert [ref=e18]

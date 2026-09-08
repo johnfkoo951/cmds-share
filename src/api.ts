@@ -107,10 +107,17 @@ export class ShareApiService {
 			// covered by the E2E encryption.
 			htmlContent = await this.uploadInlineAssets(htmlContent, file, app);
 
+			// Raw markdown travels with the page so viewers can copy/download the
+			// source. Honors removeFrontmatter — frontmatter may hold private keys.
+			let mdSource = content;
+			if (this.settings.removeFrontmatter) {
+				mdSource = mdSource.replace(/^---\n[\s\S]*?\n---\n?/, '');
+			}
+
 			let finalEncryptedData: string | undefined;
 			let encryptionKey: string | undefined;
 			if (shouldEncrypt) {
-				const encrypted = await encryptString(JSON.stringify({ content: htmlContent, title }));
+				const encrypted = await encryptString(JSON.stringify({ content: htmlContent, title, markdown: mdSource }));
 				finalEncryptedData = JSON.stringify({ ciphertext: encrypted.ciphertext });
 				encryptionKey = encrypted.key;
 			}
@@ -134,6 +141,9 @@ export class ShareApiService {
 				description: shouldEncrypt ? undefined : description,
 				// link/tag names would leak metadata on encrypted shares — skip there
 				graph: shouldEncrypt ? undefined : this.collectGraphData(file, title, app),
+				// plaintext md would break E2E — encrypted shares carry it in the payload
+				markdown: shouldEncrypt ? undefined : mdSource,
+				expiresAt: options.expiresAt,
 			});
 
 			const meta: ShareMeta = {
@@ -371,6 +381,15 @@ export class ShareApiService {
 			'[class*="snw-"], [data-snw-type], button, .metadata-container, .frontmatter, .frontmatter-container, .mod-frontmatter'
 		).forEach(el => el.remove());
 
+		// virtual-scroll leftovers: the pusher spacer and the sizer's inline
+		// min-height/padding would reserve phantom space on the share page
+		root.querySelectorAll('.markdown-preview-pusher').forEach(el => el.remove());
+		root.querySelectorAll('.markdown-preview-sizer').forEach(el => el.removeAttribute('style'));
+
+		// pipe tables Obsidian left as plain paragraphs (e.g. a table that
+		// interrupts a paragraph, or was mid-edit when rendered) → real <table>
+		rescueRawTables(root);
+
 		// callout icons paint asynchronously in Obsidian, so the cloned/rendered
 		// DOM often carries an EMPTY <svg> — refill from the bundled icon set
 		root.querySelectorAll('.callout').forEach(callout => {
@@ -391,10 +410,35 @@ export class ShareApiService {
 			if (!view || view.file?.path !== file.path) {
 				return null;
 			}
+			// In Live Preview / source mode the reading-view DOM still exists but is
+			// hidden and STALE (last rendered content, possibly hours old). Cloning
+			// it ships outdated markup — e.g. a table that has since been fixed
+			// still appears as raw pipe text. Only trust a visible reading view.
+			if (view.getMode() !== 'preview') {
+				return null;
+			}
 
 			const previewEl = view.contentEl.querySelector('.markdown-preview-view');
 			if (!previewEl) {
 				return null;
+			}
+
+			// Reading view VIRTUALIZES long notes: sections scrolled out of sight
+			// are removed from the DOM and replaced by spacer margins. Cloning
+			// that DOM ships an incomplete note with a giant blank gap. Detect
+			// the artifacts and fall back to a full MarkdownRenderer pass.
+			const pusher = previewEl.querySelector<HTMLElement>('.markdown-preview-pusher');
+			if (pusher && Math.abs(parseFloat(pusher.style.marginBottom || '0')) > 1) {
+				return null; // content above the viewport is missing
+			}
+			const sizer = previewEl.querySelector<HTMLElement>('.markdown-preview-sizer');
+			if (sizer) {
+				const estimatedFull = parseFloat(sizer.style.minHeight || '0');
+				let laidOut = 0;
+				for (const child of Array.from(sizer.children)) laidOut += (child as HTMLElement).offsetHeight;
+				if (estimatedFull > 0 && laidOut < estimatedFull * 0.8) {
+					return null; // content below the viewport is missing
+				}
 			}
 
 			const clone = previewEl.cloneNode(true) as HTMLElement;
@@ -721,6 +765,83 @@ function injectMermaidSources(html: string, markdown: string): string {
 		candidates[i].replaceWith(holder);
 	}
 	return root.innerHTML;
+}
+
+/**
+ * Obsidian occasionally leaves a GFM pipe table unparsed — it lands as a
+ * <p> whose lines are the raw `| a | b |` rows joined by <br>. Rebuild those
+ * into a real table (inline HTML inside cells is kept as Obsidian rendered it).
+ */
+const TABLE_SEP_RE = /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/;
+
+function splitTableRow(line: string): string[] {
+	let s = line.trim();
+	if (s.startsWith('|')) s = s.slice(1);
+	if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
+	const cells: string[] = [];
+	let cur = '';
+	let inCode = false;
+	for (let i = 0; i < s.length; i++) {
+		const ch = s[i];
+		if (ch === '<' && /^<\/?code[\s>]/i.test(s.slice(i, i + 7))) {
+			inCode = s[i + 1] !== '/';
+		}
+		if (ch === '\\' && s[i + 1] === '|') { cur += '|'; i++; continue; }
+		if (ch === '|' && !inCode) { cells.push(cur.trim()); cur = ''; continue; }
+		cur += ch;
+	}
+	cells.push(cur.trim());
+	return cells;
+}
+
+function rescueRawTables(root: HTMLElement): void {
+	root.querySelectorAll('p').forEach(p => {
+		const html = p.innerHTML;
+		if (!/^\s*\|/.test(p.textContent || '') || !/<br\s*\/?>/i.test(html)) return;
+		const lines = html.split(/<br\s*\/?>\r?\n?/i).map(l => l.trim()).filter(l => l.length > 0);
+		if (lines.length < 2) return;
+		const sepText = lines[1].replace(/<[^>]+>/g, '').trim();
+		if (!lines[0].startsWith('|') || !TABLE_SEP_RE.test(sepText)) return;
+
+		const aligns = splitTableRow(sepText).map(c => {
+			const l = c.startsWith(':'), r = c.endsWith(':');
+			return l && r ? 'center' : r ? 'right' : l ? 'left' : '';
+		});
+		const header = splitTableRow(lines[0]);
+		const rows: string[][] = [];
+		let i = 2;
+		for (; i < lines.length; i++) {
+			if (!lines[i].startsWith('|')) break;
+			rows.push(splitTableRow(lines[i]));
+		}
+		const rest = lines.slice(i);
+
+		const table = document.createElement('table');
+		const thead = table.createTHead();
+		const hr = thead.insertRow();
+		header.forEach((c, k) => {
+			const th = document.createElement('th');
+			if (aligns[k]) th.style.textAlign = aligns[k];
+			th.innerHTML = c;
+			hr.appendChild(th);
+		});
+		const tbody = table.createTBody();
+		rows.forEach(r => {
+			const tr = tbody.insertRow();
+			header.forEach((_, k) => {
+				const td = tr.insertCell();
+				if (aligns[k]) td.style.textAlign = aligns[k];
+				td.innerHTML = r[k] ?? '';
+			});
+		});
+
+		p.replaceWith(table);
+		if (rest.length) {
+			const tail = document.createElement('p');
+			tail.innerHTML = rest.join('<br>');
+			table.after(tail);
+		}
+	});
 }
 
 function textToBase64(text: string): string {

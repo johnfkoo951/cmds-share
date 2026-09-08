@@ -13,6 +13,8 @@ Part of the [CMDSPACE](https://cmdspace.work) ecosystem.
 - **One-command publishing** — `Share current note to web` copies a public URL to your clipboard
 - **Faithful rendering** — Obsidian's real renderer (tables, callouts, code, Korean/CJK) + your theme CSS
 - **Share page extras** — table of contents sidebar with scrollspy, an interactive local graph (force-directed, zoom/pan/hover-highlight), code-block copy buttons, heading deep links, dark/light mode. TOC and graph can float as popups or dock as a persistent sidebar
+- **Markdown source tools** — every share page carries the original markdown: one-click copy and `.md` download (E2E shares keep the source inside the encrypted payload)
+- **Page badges** — encrypted shares show an E2E badge; expiring shares show a live D-day countdown computed at view time
 - **Governance** — server-side registry, view counts (link-preview bots filtered), expiry with a tombstone page, revoke/restore without deleting, cross-vault ID protection
 - **End-to-end encryption (optional)** — AES-256-GCM in the plugin; the key travels only in the URL fragment and never reaches the server
 - **CMS view in Obsidian** — browse all shares, live view counts reconciled from the server, re-share, revoke, delete
