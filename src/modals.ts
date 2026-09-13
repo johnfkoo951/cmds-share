@@ -46,9 +46,12 @@ export class ShareOptionsModal extends Modal {
 					this.response.encrypted = value;
 				}));
 
+		const serverExpiry = this.settings.activeProvider === 'cloud' || this.settings.activeProvider === 'convex';
 		new Setting(contentEl)
 			.setName('Expiration')
-			.setDesc('Auto-delete after this time')
+			.setDesc(serverExpiry
+				? 'Auto-delete after this time'
+				: 'The page hides its content after this time. The file itself stays in your repo/storage — delete the share to remove it.')
 			.addDropdown(dropdown => dropdown
 				.addOption('', 'Never')
 				.addOption('1 hour', '1 hour')

@@ -258,8 +258,13 @@ export default class CMDSSharePlugin extends Plugin {
 		// say when a share will die — silent expiry surprised us once already
 		const expiryNote = expiresAt ? ` · expires ${response.expiration}` : '';
 		// GitHub Pages rebuilds the site on every push — a fresh link 404s for ~1 min
-		const pagesNote = this.settings.activeProvider === 'github' ? ' · GitHub Pages goes live in ~1 min' : '';
+		const pagesNote = this.settings.activeProvider === 'github' ? ' · GitHub Pages is building, ~1 min' : '';
 		new Notice((existing ? 'Re-shared! URL copied' : 'Shared! URL copied') + expiryNote + pagesNote, pagesNote ? 6000 : undefined);
+		if (pagesNote) {
+			void this.api.waitForGitHubPages(now).then(live => {
+				new Notice(live ? `Live: ${title}` : `GitHub Pages build not confirmed for ${title} — check the repo's Pages settings`, 6000);
+			});
+		}
 	}
 
 	async deleteSharedNote(note: SharedNote): Promise<boolean> {

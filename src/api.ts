@@ -60,6 +60,11 @@ export class ShareApiService {
 		return this.provider;
 	}
 
+	/** After a GitHub share: resolve when the Pages build that includes it is live. */
+	waitForGitHubPages(since: number): Promise<boolean> {
+		return new GitHubProvider(this.settings.providers.github).waitUntilLive(since);
+	}
+
 	/** One-click GitHub Pages onboarding (creates repo + enables Pages). */
 	async setupGitHub(): Promise<GitHubSetupResult> {
 		const gh = new GitHubProvider(this.settings.providers.github);

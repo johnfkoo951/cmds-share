@@ -429,6 +429,28 @@ export class GitHubProvider implements ServerProvider {
 		}
 	}
 
+	/**
+	 * Poll the Pages build that follows an upload. Resolves true once GitHub
+	 * reports `built` for a build newer than `since`, false on error/timeout.
+	 */
+	async waitUntilLive(since: number, timeoutMs = 120_000): Promise<boolean> {
+		if (!this.config.token || !this.config.repo) return false;
+		const [owner, repo] = this.config.repo.split('/');
+		const url = `https://api.github.com/repos/${owner}/${repo}/pages/builds/latest`;
+		const deadline = Date.now() + timeoutMs;
+		while (Date.now() < deadline) {
+			await new Promise(r => setTimeout(r, 5000));
+			try {
+				const res = await requestUrl({ url, headers: this.ghHeaders(), throw: false });
+				if (res.status !== 200) continue;
+				const b = res.json as { status?: string; created_at?: string };
+				if (b.status === 'errored') return false;
+				if (b.status === 'built' && b.created_at && new Date(b.created_at).getTime() >= since - 60_000) return true;
+			} catch { /* transient */ }
+		}
+		return false;
+	}
+
 	async upload(content: string, filename: string, mimeType: string): Promise<UploadResult> {
 		if (!this.config.token || !this.config.repo) {
 			return { success: false, error: GH_NOT_CONFIGURED };
