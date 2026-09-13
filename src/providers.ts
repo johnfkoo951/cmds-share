@@ -327,7 +327,7 @@ export class GitHubProvider implements ServerProvider {
 	 */
 	async setup(): Promise<GitHubSetupResult> {
 		if (!this.config.token) return { success: false, message: 'Paste a GitHub token first' };
-		const branch = this.config.branch || 'main';
+		let branch = this.config.branch || 'main';
 		try {
 			const me = await requestUrl({ url: 'https://api.github.com/user', headers: this.ghHeaders(), throw: false });
 			if (me.status !== 200) return { success: false, message: `Token rejected (${me.status}). Create a classic token with the "repo" scope.` };
@@ -363,12 +363,20 @@ export class GitHubProvider implements ServerProvider {
 					return { success: false, message: `Could not create ${full}: ${msg}` };
 				}
 				created = true;
+				branch = (mk.json as { default_branch?: string }).default_branch || branch;
 				// GitHub needs a beat before the new branch accepts content writes
 				await new Promise(r => setTimeout(r, 1500));
 			} else if (probe.status !== 200) {
 				return { success: false, message: `Cannot access ${full} (${probe.status})` };
 			} else if ((probe.json as { private?: boolean }).private) {
 				return { success: false, message: `${full} is private — GitHub Pages on a free plan needs a public repo` };
+			} else {
+				// a stale branch setting (old default was gh-pages) must not block
+				// setup — fall back to whatever branch the repo actually serves from
+				const has = await requestUrl({ url: `${base}/branches/${encodeURIComponent(branch)}`, headers: this.ghHeaders(), throw: false });
+				if (has.status === 404) {
+					branch = (probe.json as { default_branch?: string }).default_branch || 'main';
+				}
 			}
 
 			// keep Pages from running Jekyll over the notes (faster, no underscore surprises)
