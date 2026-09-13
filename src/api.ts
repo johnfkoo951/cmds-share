@@ -785,71 +785,100 @@ function injectMermaidSources(html: string, markdown: string): string {
  */
 const TABLE_SEP_RE = /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/;
 
-function splitTableRow(line: string): string[] {
-	let s = line.trim();
-	if (s.startsWith('|')) s = s.slice(1);
-	if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
-	const cells: string[] = [];
-	let cur = '';
-	let inCode = false;
-	for (let i = 0; i < s.length; i++) {
-		const ch = s[i];
-		if (ch === '<' && /^<\/?code[\s>]/i.test(s.slice(i, i + 7))) {
-			inCode = s[i + 1] !== '/';
+type CellNodes = Node[];
+
+/** Split one rendered line (nodes between <br>s) into cells at unescaped `|`
+ *  characters found in text nodes. Inline elements (<code>, <strong>…) are
+ *  kept whole, so a pipe inside <code> never splits a cell. */
+function splitLineIntoCells(line: Node[]): CellNodes[] {
+	const cells: CellNodes[] = [[]];
+	const push = (n: Node) => cells[cells.length - 1].push(n);
+	for (const node of line) {
+		if (node.nodeType !== Node.TEXT_NODE) { push(node.cloneNode(true)); continue; }
+		const text = node.textContent || '';
+		let buf = '';
+		for (let i = 0; i < text.length; i++) {
+			const ch = text[i];
+			if (ch === '\\' && text[i + 1] === '|') { buf += '|'; i++; continue; }
+			if (ch === '|') { if (buf) push(document.createTextNode(buf)); buf = ''; cells.push([]); continue; }
+			buf += ch;
 		}
-		if (ch === '\\' && s[i + 1] === '|') { cur += '|'; i++; continue; }
-		if (ch === '|' && !inCode) { cells.push(cur.trim()); cur = ''; continue; }
-		cur += ch;
+		if (buf) push(document.createTextNode(buf));
 	}
-	cells.push(cur.trim());
-	return cells;
+	// trim whitespace-only edge text and drop the empty cells produced by the
+	// leading/trailing pipes of `| a | b |`
+	const trimmed = cells.map(c => {
+		const first = c[0], last = c[c.length - 1];
+		if (first?.nodeType === Node.TEXT_NODE) first.textContent = (first.textContent || '').replace(/^\s+/, '');
+		if (last?.nodeType === Node.TEXT_NODE) last.textContent = (last.textContent || '').replace(/\s+$/, '');
+		return c.filter(n => n.nodeType !== Node.TEXT_NODE || (n.textContent || '').length > 0);
+	});
+	if (trimmed.length > 1 && trimmed[0].length === 0) trimmed.shift();
+	if (trimmed.length > 1 && trimmed[trimmed.length - 1].length === 0) trimmed.pop();
+	return trimmed;
 }
 
+function lineText(line: Node[]): string {
+	return line.map(n => n.textContent || '').join('').trim();
+}
+
+/**
+ * Obsidian occasionally leaves a GFM pipe table unparsed — it lands as a
+ * <p> whose lines are the raw `| a | b |` rows joined by <br>. Rebuild those
+ * into a real table by moving the already-rendered inline nodes into cells
+ * (no HTML string round-trip).
+ */
 function rescueRawTables(root: HTMLElement): void {
 	root.querySelectorAll('p').forEach(p => {
-		const html = p.innerHTML;
-		if (!/^\s*\|/.test(p.textContent || '') || !/<br\s*\/?>/i.test(html)) return;
-		const lines = html.split(/<br\s*\/?>\r?\n?/i).map(l => l.trim()).filter(l => l.length > 0);
-		if (lines.length < 2) return;
-		const sepText = lines[1].replace(/<[^>]+>/g, '').trim();
-		if (!lines[0].startsWith('|') || !TABLE_SEP_RE.test(sepText)) return;
+		if (!/^\s*\|/.test(p.textContent || '')) return;
+		const lines: Node[][] = [[]];
+		p.childNodes.forEach(n => {
+			if (n instanceof HTMLBRElement) lines.push([]);
+			else lines[lines.length - 1].push(n);
+		});
+		const rows = lines.filter(l => lineText(l).length > 0);
+		if (rows.length < 2) return;
+		const sepText = lineText(rows[1]);
+		if (!lineText(rows[0]).startsWith('|') || !TABLE_SEP_RE.test(sepText)) return;
 
-		const aligns = splitTableRow(sepText).map(c => {
-			const l = c.startsWith(':'), r = c.endsWith(':');
+		const aligns = sepText.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => {
+			const t = c.trim();
+			const l = t.startsWith(':'), r = t.endsWith(':');
 			return l && r ? 'center' : r ? 'right' : l ? 'left' : '';
 		});
-		const header = splitTableRow(lines[0]);
-		const rows: string[][] = [];
+		const header = splitLineIntoCells(rows[0]);
+		const body: CellNodes[][] = [];
 		let i = 2;
-		for (; i < lines.length; i++) {
-			if (!lines[i].startsWith('|')) break;
-			rows.push(splitTableRow(lines[i]));
+		for (; i < rows.length; i++) {
+			if (!lineText(rows[i]).startsWith('|')) break;
+			body.push(splitLineIntoCells(rows[i]));
 		}
-		const rest = lines.slice(i);
+		const rest = rows.slice(i);
 
-		const table = document.createElement('table');
-		const thead = table.createTHead();
-		const hr = thead.insertRow();
-		header.forEach((c, k) => {
-			const th = document.createElement('th');
-			if (aligns[k]) th.style.textAlign = aligns[k];
-			th.innerHTML = c;
-			hr.appendChild(th);
+		const table = createEl('table');
+		const hr = table.createTHead().insertRow();
+		header.forEach((cell, k) => {
+			const th = hr.createEl('th');
+			if (aligns[k]) th.setCssStyles({ textAlign: aligns[k] });
+			cell.forEach(n => th.appendChild(n));
 		});
 		const tbody = table.createTBody();
-		rows.forEach(r => {
+		body.forEach(r => {
 			const tr = tbody.insertRow();
 			header.forEach((_, k) => {
 				const td = tr.insertCell();
-				if (aligns[k]) td.style.textAlign = aligns[k];
-				td.innerHTML = r[k] ?? '';
+				if (aligns[k]) td.setCssStyles({ textAlign: aligns[k] });
+				(r[k] || []).forEach(n => td.appendChild(n));
 			});
 		});
 
 		p.replaceWith(table);
 		if (rest.length) {
-			const tail = document.createElement('p');
-			tail.innerHTML = rest.join('<br>');
+			const tail = createEl('p');
+			rest.forEach((line, idx) => {
+				if (idx > 0) tail.createEl('br');
+				line.forEach(n => tail.appendChild(n));
+			});
 			table.after(tail);
 		}
 	});
