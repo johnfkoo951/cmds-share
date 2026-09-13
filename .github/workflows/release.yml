@@ -42,4 +42,4 @@ jobs:
             manifest.json
             styles.css
           generate_release_notes: true
-          fail_on_missing: false
+          fail_on_unmatched_files: true
