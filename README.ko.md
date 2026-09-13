@@ -27,15 +27,23 @@
 
 | 프로바이더 | 서버 운영 주체 | 설정 | 조회수/만료/취소 | 대시보드 |
 |---|---|---|---|---|
-| **CMDSPACE** (기본) | CMDSPACE(관리형) *또는* 본인 인스턴스 | API 토큰 | ✅ 전부 | ✅ |
+| CMDSPACE (선택) | CMDSPACE(관리형) *또는* 본인 인스턴스 | API 토큰 | ✅ 전부 | ✅ |
 | Synology NAS | 본인 (WebDAV) | NAS 계정 | ❌ (단순 파일 호스팅) | ❌ |
-| GitHub Pages | GitHub (본인 레포) | PAT 토큰 | ❌ | ❌ |
+| **GitHub Pages** (기본) | GitHub (본인 계정, 무료) | 토큰 하나 → **Set up repository** 버튼이 나머지 처리 | ❌ | ❌ |
 | Supabase | 본인 (본인 프로젝트) | 프로젝트 URL + anon key | ❌ | ❌ |
 | Convex | 본인 (본인 배포) | [cmds-share-server](https://github.com/johnfkoo951/cmds-share-server/tree/main/convex-backend)의 Convex 백엔드 배포 | 만료만 | ❌ |
 
-### CMDSPACE 프로바이더 — 활성화 전에 꼭 읽어주세요
+### GitHub Pages — 기본값, 첫 링크까지 30초
 
-플러그인 기본값은 **`share.cmdspace.work`**를 가리키는데, 이곳은 **CMDSPACE가 자체 멤버를 위해 운영하는 프라이빗·초대제 인스턴스**입니다. 열린 공용 서비스가 아닙니다:
+1. `repo` 스코프의 클래식 토큰 생성: [github.com/settings/tokens/new](https://github.com/settings/tokens/new?scopes=repo&description=CMDS%20Share)
+2. 설정 → CMDS Share → 토큰 붙여넣기 → **Set up repository**. 플러그인이 공개 레포 `obsidian-shared-notes`(또는 입력한 이름)를 만들고, `.nojekyll`을 넣고, GitHub Pages를 켜고, 사이트 URL을 기록합니다.
+3. 노트 공유. 푸시마다 GitHub가 사이트를 빌드하므로 새 링크는 약 1분 뒤에 열립니다.
+
+전부 본인 계정 안에서 처리됩니다 — 제3자 없음, 비용 없음. 노트는 공개 레포의 공개 HTML이므로 민감한 내용은 E2E 암호화를 켜세요.
+
+### CMDSPACE 프로바이더 — 초대제, 활성화 전에 꼭 읽어주세요
+
+프로바이더를 **CMDSPACE**로 바꾸면 **`share.cmdspace.work`**를 가리키는데, 이곳은 **CMDSPACE가 자체 멤버를 위해 운영하는 프라이빗·초대제 인스턴스**입니다. 열린 공용 서비스가 아닙니다:
 
 - **토큰 없이는 사용할 수 없습니다.** 업로드는 인증이 필요하며, 회원가입 절차는 없습니다.
 - **토큰을 받고 싶다면** [GitHub 이슈](https://github.com/johnfkoo951/cmds-share/issues)를 `Token request` 제목으로 열어주세요. 초대는 건별·베스트에포트로 판단하며, SLA나 가동률 보장은 없습니다 — 상용 서비스가 아닌 개인 운영 인스턴스입니다.
@@ -45,7 +53,7 @@
 
 서버는 오픈소스입니다: **[cmds-share-server](https://github.com/johnfkoo951/cmds-share-server)** — Vercel + Supabase 위의 작은 Next.js 앱 (무료 티어로 충분). 배포 후 본인의 `CMDS_API_TOKENS`를 설정하고, 플러그인의 **Server URL**을 본인 도메인으로 바꾸면 조회수·만료·취소·대시보드까지 전체 거버넌스 기능을 본인 데이터 완전 통제 하에 사용합니다.
 
-서버 운영 자체가 싫다면 Synology / GitHub Pages / Supabase / Convex 프로바이더를 쓰세요 — 완전 셀프서비스지만 거버넌스 기능은 빠집니다.
+서버 운영 자체가 싫다면 기본값인 GitHub Pages를 그대로 쓰거나 Synology / Supabase / Convex를 쓰세요 — 완전 셀프서비스지만 거버넌스 기능은 빠집니다.
 
 ## 설치
 
@@ -61,7 +69,7 @@
 
 ## 빠른 시작
 
-1. **설정 → CMDS Share** → 프로바이더 선택·인증 정보 입력 (CMDSPACE/자체 서버: Server URL + API 토큰) → **Test connection**
+1. **설정 → CMDS Share** → GitHub 토큰 붙여넣기 → **Set up repository** (다른 프로바이더는 선택 후 인증 정보 입력) → **Test connection**
 2. 노트 열기 → 커맨드 팔레트 → **Share current note to web**
 3. 대화상자에서 암호화/만료 선택 → 공개 URL이 클립보드로 복사됨
 4. 같은 노트를 재공유하면 페이지가 갱신되고 **링크는 그대로 유지**

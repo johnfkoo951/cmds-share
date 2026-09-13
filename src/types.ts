@@ -98,6 +98,8 @@ export interface GitHubProviderConfig extends BaseProviderConfig {
 	branch: string;
 	path: string;
 	customDomain?: string;
+	/** Pages site root reported by GitHub after setup (handles user sites + custom domains). */
+	pagesUrl?: string;
 }
 
 export interface SupabaseProviderConfig extends BaseProviderConfig {
@@ -156,7 +158,7 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	uid: '',
 	vaultId: '',
 	vaultName: '',
-	activeProvider: 'cloud',
+	activeProvider: 'github',
 	encryptionMode: 'auto',
 	shareTheme: 'cmds',
 	titleSource: 'filename',
@@ -192,11 +194,11 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 		},
 		github: {
 			type: 'github',
-			enabled: false,
+			enabled: true,
 			name: 'GitHub Pages',
 			token: '',
 			repo: '',
-			branch: 'gh-pages',
+			branch: 'main',
 			path: 'notes',
 			customDomain: '',
 		},
@@ -264,12 +266,12 @@ export interface CMSStats {
 	byProvider: Record<ServerProviderType, number>;
 }
 
-export const SUPPORTED_PROVIDERS = ['cloud', 'synology', 'github', 'supabase', 'convex'] as const;
+export const SUPPORTED_PROVIDERS = ['github', 'cloud', 'synology', 'supabase', 'convex'] as const;
 
 export const PROVIDER_DISPLAY_NAMES: Record<ServerProviderType, string> = {
-	cloud: 'CMDSPACE',
+	cloud: 'CMDSPACE (members)',
 	synology: 'Synology NAS',
-	github: 'GitHub Pages',
+	github: 'GitHub Pages (free)',
 	supabase: 'Supabase',
 	convex: 'Convex',
 };

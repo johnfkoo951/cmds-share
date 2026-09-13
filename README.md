@@ -27,15 +27,23 @@ Part of the [CMDSPACE](https://cmdspace.work) ecosystem.
 
 | Provider | Who runs the server | Setup | View counts / expiry / revoke | Dashboard |
 |---|---|---|---|---|
-| **CMDSPACE** (default) | CMDSPACE (managed) *or* your own instance | API token | ✅ all | ✅ |
+| CMDSPACE (opt-in) | CMDSPACE (managed) *or* your own instance | API token | ✅ all | ✅ |
 | Synology NAS | You (WebDAV) | NAS credentials | ❌ (plain file hosting) | ❌ |
-| GitHub Pages | GitHub (your repo) | Personal access token | ❌ | ❌ |
+| **GitHub Pages** (default) | GitHub (your account, free) | One token → **Set up repository** button does the rest | ❌ | ❌ |
 | Supabase | You (your project) | Project URL + anon key, public bucket | ❌ | ❌ |
 | Convex | You (your deployment) | Deploy the Convex backend from [cmds-share-server](https://github.com/johnfkoo951/cmds-share-server/tree/main/convex-backend) | expiry only | ❌ |
 
-### The CMDSPACE provider — read this before enabling
+### GitHub Pages — the default, 30 seconds to your first link
 
-The plugin ships pointed at **`share.cmdspace.work`**, which is a **private, invite-only instance operated by CMDSPACE for its own members**. It is *not* an open public service:
+1. Create a classic token with the `repo` scope: [github.com/settings/tokens/new](https://github.com/settings/tokens/new?scopes=repo&description=CMDS%20Share)
+2. Settings → CMDS Share → paste the token → **Set up repository**. The plugin creates a public `obsidian-shared-notes` repo (or uses the name you typed), adds `.nojekyll`, enables GitHub Pages, and records your site URL.
+3. Share a note. GitHub builds the site on each push, so a brand-new link goes live after about a minute.
+
+Everything is in your own account — no third party, no cost. Notes are public HTML in a public repo; turn on E2E encryption for anything sensitive.
+
+### The CMDSPACE provider — invite-only, read before enabling
+
+Switching the provider to **CMDSPACE** points at **`share.cmdspace.work`**, a **private, invite-only instance operated by CMDSPACE for its own members**. It is *not* an open public service:
 
 - **You cannot use it without a token.** Uploads are authenticated; there is no sign-up.
 - **Want a token?** Open a [GitHub issue](https://github.com/johnfkoo951/cmds-share/issues) with the title `Token request`. Invitations are granted case-by-case, best-effort, with no SLA or uptime guarantee — this is a personal instance, not a commercial service.
@@ -45,7 +53,7 @@ The plugin ships pointed at **`share.cmdspace.work`**, which is a **private, inv
 
 The server is open source: **[cmds-share-server](https://github.com/johnfkoo951/cmds-share-server)** — a small Next.js app on Vercel + Supabase (free tiers are enough). Deploy it, set your own `CMDS_API_TOKENS`, then in the plugin change **Server URL** to your domain. You get the full governance feature set (view counts, expiry, revocation, dashboard) with your data entirely under your control.
 
-If you don't want to run a server at all, use the Synology / GitHub Pages / Supabase / Convex providers — they are fully self-service but skip the governance features.
+If you don't want to run a server at all, stay on GitHub Pages (default) or use Synology / Supabase / Convex — all fully self-service, without the governance features.
 
 ## Installation
 
@@ -61,7 +69,7 @@ Settings → Community plugins → search **CMDS Share** → Install & enable.
 
 ## Quick start
 
-1. **Settings → CMDS Share** → pick a provider and fill in its credentials (for CMDSPACE/self-hosted: Server URL + API token) → **Test connection**
+1. **Settings → CMDS Share** → paste a GitHub token → **Set up repository** (or pick another provider and fill in its credentials) → **Test connection**
 2. Open a note → command palette → **Share current note to web**
 3. Choose encryption/expiry in the dialog → the public URL is copied to your clipboard
 4. Re-sharing the same note updates the page and **keeps the same link**

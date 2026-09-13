@@ -1,6 +1,6 @@
 import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags, setIcon, requestUrl } from 'obsidian';
 import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType, NoteGraphData, ThemePalette, ThemeVars } from './types';
-import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta } from './providers';
+import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta, GitHubProvider, GitHubSetupResult } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
 import { generateNoteHtml, PALETTES } from './template';
 
@@ -58,6 +58,12 @@ export class ShareApiService {
 
 	getActiveProvider(): ServerProvider | null {
 		return this.provider;
+	}
+
+	/** One-click GitHub Pages onboarding (creates repo + enables Pages). */
+	async setupGitHub(): Promise<GitHubSetupResult> {
+		const gh = new GitHubProvider(this.settings.providers.github);
+		return gh.setup();
 	}
 
 	getActiveProviderType(): ServerProviderType {

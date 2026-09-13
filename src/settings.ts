@@ -433,77 +433,129 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 
 	private renderGitHubSettings(containerEl: HTMLElement): void {
 		new Setting(containerEl).setName('GitHub Pages').setHeading();
+		const gh = this.plugin.settings.providers.github;
 
 		const infoEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
-		infoEl.createEl('p', { text: 'Host shared notes on GitHub Pages (free hosting).' });
+		infoEl.createEl('p', { text: 'Free hosting on your own GitHub account — no sign-up, no token from anyone else. Two steps:' });
 		const stepsEl = infoEl.createEl('ol');
-		stepsEl.createEl('li', { text: 'Create a repository for your shared notes' });
-		stepsEl.createEl('li', { text: 'Enable GitHub Pages in repo settings' });
-		stepsEl.createEl('li', { text: 'Generate a personal access token with repo scope' });
-
-		new Setting(containerEl)
-			.setName('Enabled')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.providers.github.enabled)
-				.onChange(async (value) => {
-					this.plugin.settings.providers.github.enabled = value;
-					await this.plugin.saveSettings();
-				}));
+		const li1 = stepsEl.createEl('li');
+		li1.appendText('Create a GitHub token with the ');
+		li1.createEl('code', { text: 'repo' });
+		li1.appendText(' scope: ');
+		li1.createEl('a', { text: 'github.com/settings/tokens/new', href: 'https://github.com/settings/tokens/new?scopes=repo&description=CMDS%20Share' });
+		li1.appendText(' → paste it below.');
+		stepsEl.createEl('li', { text: 'Click "Set up repository" — the plugin creates the repo (if needed) and enables GitHub Pages for you.' });
+		infoEl.createEl('p', { text: 'Shared notes are public web pages in a public repo. Use E2E encryption for anything sensitive. The first page takes about a minute to go live while GitHub builds the site.' });
 
 		new Setting(containerEl)
 			.setName('Personal access token')
-			.setDesc('GitHub token with repo scope')
+			.setDesc('Classic token with "repo" scope (fine-grained: Contents + Pages + Administration write)')
 			.addText(text => {
 				text.inputEl.type = 'password';
 				text
 					.setPlaceholder('ghp_xxxx')
-					.setValue(this.plugin.settings.providers.github.token)
+					.setValue(gh.token)
 					.onChange(async (value) => {
-						this.plugin.settings.providers.github.token = value.trim();
+						gh.token = value.trim();
 						await this.plugin.saveSettings();
 					});
 			});
 
+		const statusEl = containerEl.createEl('div', { cls: 'setting-item-description cmds-share-provider-info' });
+		const renderStatus = () => {
+			statusEl.empty();
+			if (gh.repo) {
+				const p = statusEl.createEl('p');
+				p.appendText('Repository: ');
+				p.createEl('a', { text: gh.repo, href: `https://github.com/${gh.repo}` });
+				if (gh.pagesUrl) {
+					p.appendText(' · Site: ');
+					p.createEl('a', { text: gh.pagesUrl, href: gh.pagesUrl });
+				} else {
+					p.appendText(' · Pages URL unknown — run "Set up repository" once');
+				}
+			} else {
+				statusEl.createEl('p', { text: 'No repository yet. Leave the name as-is and click "Set up repository".' });
+			}
+		};
+		renderStatus();
+
 		new Setting(containerEl)
 			.setName('Repository')
-			.setDesc('owner/repo format')
+			.setDesc('Name, or owner/name to use an existing repo. Created for you if it does not exist.')
 			.addText(text => text
-				.setPlaceholder('username/shared-notes')
-				.setValue(this.plugin.settings.providers.github.repo)
+				.setPlaceholder('obsidian-shared-notes')
+				.setValue(gh.repo)
 				.onChange(async (value) => {
-					this.plugin.settings.providers.github.repo = value.trim();
+					gh.repo = value.trim();
+					gh.pagesUrl = '';
+					await this.plugin.saveSettings();
+					renderStatus();
+				}))
+			.addButton(button => button
+				.setButtonText('Set up repository')
+				.setCta()
+				.onClick(async () => {
+					button.setDisabled(true).setButtonText('Setting up…');
+					try {
+						const result = await this.plugin.api.setupGitHub();
+						if (result.success) {
+							gh.repo = result.repo || gh.repo;
+							gh.branch = result.branch || gh.branch;
+							gh.pagesUrl = result.pagesUrl || '';
+							gh.enabled = true;
+							await this.plugin.saveSettings();
+							new Notice(`✓ ${result.message}`);
+							this.display();
+						} else {
+							new Notice(`✗ ${result.message}`, 8000);
+						}
+					} finally {
+						button.setDisabled(false).setButtonText('Set up repository');
+					}
+				}));
+
+		new Setting(containerEl).setName('Advanced').setHeading();
+
+		new Setting(containerEl)
+			.setName('Enabled')
+			.addToggle(toggle => toggle
+				.setValue(gh.enabled)
+				.onChange(async (value) => {
+					gh.enabled = value;
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
 			.setName('Branch')
+			.setDesc('Branch GitHub Pages serves from')
 			.addText(text => text
-				.setPlaceholder('gh-pages')
-				.setValue(this.plugin.settings.providers.github.branch)
+				.setPlaceholder('main')
+				.setValue(gh.branch)
 				.onChange(async (value) => {
-					this.plugin.settings.providers.github.branch = value.trim() || 'gh-pages';
+					gh.branch = value.trim() || 'main';
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
 			.setName('Path')
-			.setDesc('Directory in repo for notes')
+			.setDesc('Directory in the repo for notes')
 			.addText(text => text
 				.setPlaceholder('notes')
-				.setValue(this.plugin.settings.providers.github.path)
+				.setValue(gh.path)
 				.onChange(async (value) => {
-					this.plugin.settings.providers.github.path = value.trim() || 'notes';
+					gh.path = value.trim() || 'notes';
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
 			.setName('Custom domain')
-			.setDesc('Optional custom domain for GitHub Pages')
+			.setDesc('Only if you pointed a domain at this Pages site')
 			.addText(text => text
 				.setPlaceholder('notes.example.com')
-				.setValue(this.plugin.settings.providers.github.customDomain || '')
+				.setValue(gh.customDomain || '')
 				.onChange(async (value) => {
-					this.plugin.settings.providers.github.customDomain = value.trim();
+					gh.customDomain = value.trim();
 					await this.plugin.saveSettings();
 				}));
 

@@ -295,12 +295,135 @@ export class SynologyProvider implements ServerProvider {
 	}
 }
 
+export interface GitHubSetupResult {
+	success: boolean;
+	message: string;
+	repo?: string;
+	branch?: string;
+	pagesUrl?: string;
+	created?: boolean;
+}
+
+const GH_DEFAULT_REPO = 'obsidian-shared-notes';
+const GH_NOT_CONFIGURED = 'GitHub Pages is not set up yet — open Settings → CMDS Share, paste a token and click "Set up repository"';
+
 export class GitHubProvider implements ServerProvider {
 	constructor(private config: GitHubProviderConfig) {}
 
+	private ghHeaders(json = false): Record<string, string> {
+		const h: Record<string, string> = {
+			'Authorization': `Bearer ${this.config.token}`,
+			'Accept': 'application/vnd.github+json',
+		};
+		if (json) h['Content-Type'] = 'application/json';
+		return h;
+	}
+
+	/**
+	 * One-click onboarding: resolve the token's login, create the repo if it
+	 * doesn't exist (public, auto-initialised on `branch`), drop a .nojekyll,
+	 * enable Pages from that branch, and record the Pages URL GitHub reports.
+	 * Idempotent — safe to re-run on an already-configured repo.
+	 */
+	async setup(): Promise<GitHubSetupResult> {
+		if (!this.config.token) return { success: false, message: 'Paste a GitHub token first' };
+		const branch = this.config.branch || 'main';
+		try {
+			const me = await requestUrl({ url: 'https://api.github.com/user', headers: this.ghHeaders(), throw: false });
+			if (me.status !== 200) return { success: false, message: `Token rejected (${me.status}). Create a classic token with the "repo" scope.` };
+			const login = (me.json as { login: string }).login;
+
+			let full = (this.config.repo || '').trim();
+			if (!full) full = `${login}/${GH_DEFAULT_REPO}`;
+			else if (!full.includes('/')) full = `${login}/${full}`;
+			const [owner, repo] = full.split('/');
+			const base = `https://api.github.com/repos/${owner}/${repo}`;
+
+			let created = false;
+			const probe = await requestUrl({ url: base, headers: this.ghHeaders(), throw: false });
+			if (probe.status === 404) {
+				const target = owner === login ? 'https://api.github.com/user/repos' : `https://api.github.com/orgs/${owner}/repos`;
+				const mk = await requestUrl({
+					url: target,
+					method: 'POST',
+					headers: this.ghHeaders(true),
+					body: JSON.stringify({
+						name: repo,
+						description: 'Notes shared from Obsidian with CMDS Share',
+						private: false,
+						auto_init: true,
+						has_issues: false,
+						has_wiki: false,
+						has_projects: false,
+					}),
+					throw: false,
+				});
+				if (mk.status !== 201) {
+					const msg = (mk.json as { message?: string })?.message || `HTTP ${mk.status}`;
+					return { success: false, message: `Could not create ${full}: ${msg}` };
+				}
+				created = true;
+				// GitHub needs a beat before the new branch accepts content writes
+				await new Promise(r => setTimeout(r, 1500));
+			} else if (probe.status !== 200) {
+				return { success: false, message: `Cannot access ${full} (${probe.status})` };
+			} else if ((probe.json as { private?: boolean }).private) {
+				return { success: false, message: `${full} is private — GitHub Pages on a free plan needs a public repo` };
+			}
+
+			// keep Pages from running Jekyll over the notes (faster, no underscore surprises)
+			const nojekyll = `${base}/contents/.nojekyll`;
+			const existing = await this.getFileSha(nojekyll, branch);
+			if (!existing) {
+				const put = await requestUrl({
+					url: nojekyll,
+					method: 'PUT',
+					headers: this.ghHeaders(true),
+					body: JSON.stringify({ message: 'Disable Jekyll for shared notes', content: '', branch }),
+					throw: false,
+				});
+				if (put.status === 404 || put.status === 422) {
+					return { success: false, message: `Branch "${branch}" not found in ${full}. Set Branch to the repo's default branch (usually main).` };
+				}
+			}
+
+			// enable Pages from <branch>:/ — 409 = already enabled, fine
+			const pagesApi = `${base}/pages`;
+			let pages = await requestUrl({ url: pagesApi, headers: this.ghHeaders(), throw: false });
+			if (pages.status === 404) {
+				const en = await requestUrl({
+					url: pagesApi,
+					method: 'POST',
+					headers: this.ghHeaders(true),
+					body: JSON.stringify({ source: { branch, path: '/' } }),
+					throw: false,
+				});
+				if (en.status !== 201 && en.status !== 409) {
+					const msg = (en.json as { message?: string })?.message || `HTTP ${en.status}`;
+					return { success: false, message: `Repo ready, but enabling Pages failed: ${msg}. Token needs the "repo" scope (classic) or Pages: write (fine-grained).` };
+				}
+				pages = await requestUrl({ url: pagesApi, headers: this.ghHeaders(), throw: false });
+			}
+			const pagesUrl = pages.status === 200
+				? ((pages.json as { html_url?: string }).html_url || '').replace(/\/+$/, '')
+				: '';
+
+			return {
+				success: true,
+				created,
+				repo: full,
+				branch,
+				pagesUrl,
+				message: created ? `Created ${full} and enabled GitHub Pages` : `${full} is ready (Pages enabled)`,
+			};
+		} catch (error) {
+			return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
+		}
+	}
+
 	async upload(content: string, filename: string, mimeType: string): Promise<UploadResult> {
 		if (!this.config.token || !this.config.repo) {
-			return { success: false, error: 'GitHub not configured' };
+			return { success: false, error: GH_NOT_CONFIGURED };
 		}
 
 		try {
@@ -355,7 +478,7 @@ export class GitHubProvider implements ServerProvider {
 
 	private async uploadBase64(base64Content: string, filename: string): Promise<UploadResult> {
 		if (!this.config.token || !this.config.repo) {
-			return { success: false, error: 'GitHub not configured' };
+			return { success: false, error: GH_NOT_CONFIGURED };
 		}
 
 		try {
@@ -458,17 +581,23 @@ export class GitHubProvider implements ServerProvider {
 	}
 
 	getPublicUrl(filename: string): string {
-		const [owner, repo] = this.config.repo.split('/');
-		if (this.config.customDomain) {
-			return `https://${this.config.customDomain}/${this.config.path}/${filename}`;
-		}
-		return `https://${owner}.github.io/${repo}/${this.config.path}/${filename}`;
+		return `${this.getSiteRoot()}/${this.config.path}/${filename}`;
 	}
 
-	private async getFileSha(apiUrl: string): Promise<string | null> {
+	/** Pages site root without trailing slash. */
+	getSiteRoot(): string {
+		if (this.config.customDomain) return `https://${this.config.customDomain}`;
+		if (this.config.pagesUrl) return this.config.pagesUrl.replace(/\/+$/, '');
+		const [owner, repo] = (this.config.repo || '/').split('/');
+		// a user/org site repo (<owner>.github.io) is served from the domain root
+		if (repo && repo.toLowerCase() === `${owner.toLowerCase()}.github.io`) return `https://${repo}`;
+		return `https://${owner}.github.io/${repo}`;
+	}
+
+	private async getFileSha(apiUrl: string, branch = this.config.branch): Promise<string | null> {
 		try {
 			const response = await requestUrl({
-				url: `${apiUrl}?ref=${this.config.branch}`,
+				url: `${apiUrl}?ref=${branch}`,
 				method: 'GET',
 				headers: {
 					'Authorization': `Bearer ${this.config.token}`,
