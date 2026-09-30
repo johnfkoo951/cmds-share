@@ -2,7 +2,7 @@
 Publish a note as a readable web page, then manage it according to the capabilities of the host you chose.
 
 ## Status and prerequisites
-This guide covers **2.1.1**, verified against local source and public release metadata on **2026-09-14**. Release 2.1.1 has `main.js`, `manifest.json`, and `styles.css`; CMDS Share is in the Community Plugins registry. The registry explicitly says it has not been manually reviewed by Obsidian staff.
+This guide covers **2.2.0**, verified against local source and public release metadata on **2026-10-01**. Release 2.2.0 has `main.js`, `manifest.json`, and `styles.css`; CMDS Share is in the Community Plugins registry. The registry explicitly says it has not been manually reviewed by Obsidian staff.
 - Obsidian **1.7.2+**. The manifest allows desktop and mobile; this documentation pass did not run a mobile acceptance test.
 - Internet access and an account/token for your selected host. The default is **GitHub Pages**, not the managed CMDSPACE server.
 - Permission to publish the note, its original Markdown, images, metadata, and theme assets. Prepare a separate non-sensitive example first.
@@ -10,7 +10,7 @@ This guide covers **2.1.1**, verified against local source and public release me
 
 ## Install
 Use **Settings → Community plugins → Browse → CMDS Share → Install → Enable**. Review Obsidian's community-plugin notice first.
-Alternatively, download the three files from [release 2.1.1](https://github.com/johnfkoo951/cmds-share/releases/tag/2.1.1), place them in `<vault>/.obsidian/plugins/cmds-share/`, reload Obsidian, and enable the plugin. Keep an existing `data.json` private and intact.
+Alternatively, download the three files from [release 2.2.0](https://github.com/johnfkoo951/cmds-share/releases/tag/2.2.0), place them in `<vault>/.obsidian/plugins/cmds-share/`, reload Obsidian, and enable the plugin. Keep an existing `data.json` private and intact.
 
 ## Choose the host before sharing
 A backend is the service that receives and serves your published note. Selecting a backend does not create an account or guarantee its optional capabilities.
@@ -63,7 +63,7 @@ Use the CMS to inspect, re-share, or delete entries. Governance-host revocation 
 |---|---|
 | Vault Identity | Vault display name and Vault ID identify the publishing vault; do not casually change identity to bypass a conflict |
 | Server Provider | Active provider chooses the destination for later operations |
-| Sharing | Share title source; Share page theme; Footer link and label; Encryption mode; Default expiration |
+| Sharing | Share title source; Show title heading; Skip title heading when the note starts with an H1; Share page theme; Footer link and label; Encryption mode; Default expiration |
 | Rendering | Include theme CSS; Remove backlinks; Remove frontmatter; Note width |
 | Frontmatter Fields | Share field, Link field, Encrypted field, Expires field control names used in your notes |
 | CMS Dashboard | Enable CMS dashboard; Auto refresh |
@@ -80,6 +80,15 @@ Remove frontmatter also strips leading YAML from the downloadable Markdown. It d
 The publisher uses Obsidian rendering and theme CSS to approximate the note's reading view. Pages offer a table of contents, heading links, code copying, light/dark mode, and graph/TOC display controls. Complex plugins, scripts, local-file references, and every custom theme are not guaranteed to work in a standalone browser.
 Before sharing Eagle material, prefer a readable cloud URL or a supported image that Share can upload. `file://` is machine-local and `eagle://` navigates into a desktop app; neither is a public image host. Test from a device without your local library.
 The page also carries Markdown copy/download tools. A graph may reveal link/tag names; encrypted shares omit that graph metadata. Always review source and rendered output, not just the visible first screen.
+
+### Title heading
+With **Show title heading** on (default), the share title — taken from **Share title source** — appears as a page heading, so the note body needs no `# Title` line. **Skip title heading when the note starts with an H1** (on by default) leaves it out when the first line after the frontmatter is already an H1; turn it off to show both.
+
+### Drawings, canvases, and bases
+The same share command works on Excalidraw drawings (`.excalidraw.md`), canvases (`.canvas`), and bases (`.base`):
+- **Excalidraw** is exported through the Excalidraw plugin (it must be enabled). Large custom fonts are uploaded once as separate assets.
+- **Canvas** keeps groups, colors, connections, and labels; readers drag to pan, use Ctrl/⌘ + scroll or pinch to zoom, and can go fullscreen.
+- **Bases** (Obsidian 1.10+) are evaluated by Obsidian itself — filters, formulas, sorting, and groups apply — and published as tables (card views as cards). Every matching row becomes public. The plugin adds a **Share snapshot** view type to the Bases view menu, which previews exactly what a share will show.
 
 ## Encryption and privacy
 Encryption is optional **AES-256-GCM** of the note payload before upload. The decryption key travels after `#` in the share URL; ordinary browser requests do not send that fragment to the server. Anyone who receives the **full URL** receives the key. This is link-based access, not named-user authentication, DRM, or a guarantee against forwarding.

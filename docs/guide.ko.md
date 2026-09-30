@@ -2,7 +2,7 @@
 노트를 읽기 좋은 웹페이지로 발행하고, 선택한 호스트가 제공하는 범위 안에서 관리합니다.
 
 ## 배포 상태와 준비물
-**2026-09-14**에 로컬 소스와 공개 릴리스를 확인한 **2.1.1** 기준입니다. 릴리스에는 `main.js`, `manifest.json`, `styles.css`가 있으며 Community Plugins 목록에도 등록되어 있습니다. 목록에는 Obsidian 직원의 수동 검토를 받지 않았다는 고지가 있습니다.
+**2026-10-01**에 로컬 소스와 공개 릴리스를 확인한 **2.2.0** 기준입니다. 릴리스에는 `main.js`, `manifest.json`, `styles.css`가 있으며 Community Plugins 목록에도 등록되어 있습니다. 목록에는 Obsidian 직원의 수동 검토를 받지 않았다는 고지가 있습니다.
 - **Obsidian 1.7.2 이상**. manifest는 데스크톱과 모바일을 허용하지만 이 설명서 작업에서 모바일 실기 검증을 하지는 않았습니다.
 - 인터넷과 선택한 호스트의 계정/토큰. 기본 호스트는 관리형 CMDSPACE 서버가 아니라 **GitHub Pages**입니다.
 - 노트, 원본 Markdown, 이미지, 메타데이터, 테마 자산을 공개할 권한. 비민감 예제를 따로 준비합니다.
@@ -10,7 +10,7 @@
 
 ## 설치
 **설정 → 커뮤니티 플러그인 → 탐색 → CMDS Share → 설치 → 활성화**를 사용합니다. 커뮤니티 플러그인 권한 안내를 먼저 확인합니다.
-수동 설치는 [2.1.1 릴리스](https://github.com/johnfkoo951/cmds-share/releases/tag/2.1.1)의 파일 3종을 `<vault>/.obsidian/plugins/cmds-share/`에 넣고 Obsidian을 다시 로드한 뒤 활성화합니다. 기존 `data.json`은 비공개로 보존합니다.
+수동 설치는 [2.2.0 릴리스](https://github.com/johnfkoo951/cmds-share/releases/tag/2.2.0)의 파일 3종을 `<vault>/.obsidian/plugins/cmds-share/`에 넣고 Obsidian을 다시 로드한 뒤 활성화합니다. 기존 `data.json`은 비공개로 보존합니다.
 
 ## 먼저 호스트를 고릅니다
 백엔드는 발행할 노트를 받아 보관하고 웹에 제공하는 서비스입니다. 백엔드 선택만으로 계정이나 부가 기능이 생기지는 않습니다.
@@ -63,7 +63,7 @@ CMS에서 조회, 재공유, 삭제를 수행합니다. 거버넌스 서버의 �
 |---|---|
 | Vault Identity | Vault display name과 Vault ID는 발행 볼트를 식별; 충돌 우회 목적으로 임의 변경하지 않기 |
 | Server Provider | Active provider는 이후 작업의 목적지 |
-| Sharing | Share title source, Share page theme, Footer link와 label, Encryption mode, Default expiration |
+| Sharing | Share title source, Show title heading, Skip title heading when the note starts with an H1, Share page theme, Footer link와 label, Encryption mode, Default expiration |
 | 렌더링 | Include theme CSS, Remove backlinks, Remove frontmatter, Note width |
 | Frontmatter Fields | Share field, Link field, Encrypted field, Expires field는 노트에서 쓸 필드 이름 |
 | CMS Dashboard | Enable CMS dashboard, Auto refresh |
@@ -80,6 +80,15 @@ Remove frontmatter는 다운로드 Markdown의 앞쪽 YAML도 제거합니다. �
 Obsidian 렌더링과 테마 CSS를 사용해 읽기 화면을 재현합니다. 목차, 제목 링크, 코드 복사, 라이트/다크 모드, 그래프/목차 표시 제어를 제공합니다. 복잡한 플러그인, 스크립트, 로컬 파일 참조, 모든 사용자 테마의 동작을 독립 브라우저에서 보장하지는 않습니다.
 Eagle 자료는 외부에서 읽을 수 있는 클라우드 URL 또는 Share가 업로드할 수 있는 지원 이미지로 준비합니다. `file://`는 특정 컴퓨터의 경로이며 `eagle://`는 앱 이동 링크입니다. 내 라이브러리가 없는 기기에서도 확인합니다.
 페이지에는 원본 Markdown 복사/다운로드도 들어갑니다. 그래프는 링크/태그 이름을 드러낼 수 있고 암호화 공유에서는 해당 그래프 메타데이터를 제외합니다. 첫 화면뿐 아니라 원본과 전체 렌더링을 검토합니다.
+
+### 제목 헤딩
+**Show title heading**(기본 켬)은 **Share title source**로 정한 제목을 페이지 상단 제목으로 표시합니다. 본문에 `# 제목`을 따로 쓸 필요가 없습니다. **Skip title heading when the note starts with an H1**(기본 켬)은 프론트매터 다음 첫 줄이 이미 H1이면 제목을 생략합니다. 끄면 둘 다 표시합니다.
+
+### 드로잉, 캔버스, Bases
+같은 공유 명령으로 Excalidraw 드로잉(`.excalidraw.md`), 캔버스(`.canvas`), Bases(`.base`)도 공유합니다.
+- **Excalidraw**는 Excalidraw 플러그인으로 내보냅니다(활성화 필요). 큰 사용자 폰트는 별도 에셋으로 한 번만 업로드합니다.
+- **캔버스**는 그룹·색상·연결선·라벨을 유지합니다. 독자는 드래그로 이동, Ctrl/⌘+스크롤이나 핀치로 확대, 전체화면을 쓸 수 있습니다.
+- **Bases**(Obsidian 1.10 이상)는 Obsidian이 직접 필터·수식·정렬·그룹을 계산한 결과를 표(카드 뷰는 카드)로 발행합니다. 조건에 맞는 모든 행이 공개됩니다. Bases 뷰 메뉴에 **Share snapshot** 뷰가 추가되며, 공유될 모습을 미리 볼 수 있습니다.
 
 ## 암호화와 개인정보
 선택적 **AES-256-GCM** 암호화는 업로드 전에 노트 페이로드를 암호화합니다. 복호화 키는 공유 URL의 `#` 뒤에 들어가며 일반 브라우저 요청은 그 부분을 서버에 보내지 않습니다. **전체 URL을 받은 사람은 키도 받습니다.** 링크 기반 접근이지 실명 사용자 인증, DRM, 재전달 방지가 아닙니다.

@@ -1,8 +1,9 @@
 import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags, setIcon, requestUrl } from 'obsidian';
-import { CMDSShareSettings, SharedNote, ShareResult, ServerProviderType, NoteGraphData, ThemePalette, ThemeVars } from './types';
+import { CMDSShareSettings, SharedNote, ShareResult, ShareKind, ServerProviderType, NoteGraphData, ThemePalette, ThemeVars } from './types';
 import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta, GitHubProvider, GitHubSetupResult } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
 import { generateNoteHtml, PALETTES } from './template';
+import { detectShareKind, renderBase, renderCanvas, renderExcalidraw } from './renderers';
 
 const ASSET_MIME: Record<string, string> = {
 	png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
@@ -105,25 +106,29 @@ export class ShareApiService {
 			// The share modal's toggle wins; settings/frontmatter are the fallback.
 			const shouldEncrypt = options.encrypted ?? this.shouldEncrypt(file, app);
 
-			const extractedContent = await this.extractRenderedContent(app, file);
-			let htmlContent = extractedContent || await this.renderMarkdown(content, file, app);
-
-			// mermaid renders async in Obsidian, so the serialized DOM loses the
-			// source — re-inject it from the raw markdown; the share page renders
-			// it client-side with the latest mermaid build
-			htmlContent = injectMermaidSources(htmlContent, content);
+			const kind = detectShareKind(file, app) ?? 'note';
+			const rendered = await this.renderByKind(kind, file, content, app);
+			let htmlContent = rendered.html;
 
 			// Assets are uploaded before encryption so encrypted notes keep working
 			// images. Asset URLs are content-hashed and unlisted, but they are NOT
 			// covered by the E2E encryption.
 			htmlContent = await this.uploadInlineAssets(htmlContent, file, app);
+			htmlContent = await this.externalizeDataFonts(htmlContent);
 
 			// Raw markdown travels with the page so viewers can copy/download the
 			// source. Honors removeFrontmatter — frontmatter may hold private keys.
-			let mdSource = content;
-			if (this.settings.removeFrontmatter) {
-				mdSource = mdSource.replace(/^---\n[\s\S]*?\n---\n?/, '');
+			// Drawings/canvases/bases have no meaningful markdown source.
+			let mdSource: string | undefined;
+			if (kind === 'note') {
+				mdSource = content;
+				if (this.settings.removeFrontmatter) {
+					mdSource = mdSource.replace(/^---\n[\s\S]*?\n---\n?/, '');
+				}
 			}
+
+			const showTitle = this.settings.showTitleHeading
+				&& !(kind === 'note' && this.settings.skipTitleHeadingIfH1 && startsWithH1(content));
 
 			let finalEncryptedData: string | undefined;
 			let encryptionKey: string | undefined;
@@ -133,25 +138,28 @@ export class ShareApiService {
 				encryptionKey = encrypted.key;
 			}
 
-			const description = this.extractDescription(content);
+			const description = rendered.description ?? this.extractDescription(content);
 			const filename = `${shortId}.html`;
 			const publicUrl = this.provider.getPublicUrl(filename);
 
 			const html = generateNoteHtml({
 				title,
+				showTitle,
+				kind,
+				layout: kind === 'note' ? 'note' : 'wide',
 				palette: this.resolvePalette(),
 				themeName: this.themeDisplayName(app),
 				footerLink: this.footerLink(),
 				content: shouldEncrypt ? '' : htmlContent,
 				url: publicUrl,
-				lang: detectLang(shouldEncrypt ? title : `${title} ${content.slice(0, 2000)}`),
+				lang: detectLang(shouldEncrypt || kind !== 'note' ? `${title} ${description}` : `${title} ${content.slice(0, 2000)}`),
 				cssUrl: await this.uploadCss(),
 				noteWidth: this.settings.noteWidth,
 				encrypted: shouldEncrypt,
 				encryptedData: shouldEncrypt ? finalEncryptedData : undefined,
 				description: shouldEncrypt ? undefined : description,
 				// link/tag names would leak metadata on encrypted shares — skip there
-				graph: shouldEncrypt ? undefined : this.collectGraphData(file, title, app),
+				graph: shouldEncrypt || kind !== 'note' ? undefined : this.collectGraphData(file, title, app),
 				// plaintext md would break E2E — encrypted shares carry it in the payload
 				markdown: shouldEncrypt ? undefined : mdSource,
 				expiresAt: options.expiresAt,
@@ -181,6 +189,7 @@ export class ShareApiService {
 				url,
 				shortId,
 				encrypted: shouldEncrypt,
+				kind,
 			};
 		} catch (error) {
 			return {
@@ -188,6 +197,74 @@ export class ShareApiService {
 				error: error instanceof Error ? error.message : 'Unknown error',
 			};
 		}
+	}
+
+	/** Body HTML (+ optional description) for each shareable file type. */
+	private async renderByKind(
+		kind: ShareKind,
+		file: TFile,
+		content: string,
+		app: App
+	): Promise<{ html: string; description?: string }> {
+		if (kind === 'note') {
+			const extracted = await this.extractRenderedContent(app, file);
+			const html = extracted || await this.renderMarkdown(content, file, app);
+			// mermaid renders async in Obsidian, so the serialized DOM loses the
+			// source — re-inject it from the raw markdown; the share page renders
+			// it client-side with the latest mermaid build
+			return { html: injectMermaidSources(html, content) };
+		}
+		if (kind === 'excalidraw') {
+			const el = await renderExcalidraw(file);
+			return { html: el.outerHTML, description: '' };
+		}
+
+		const component = new Component();
+		component.load();
+		try {
+			const { el, description } = kind === 'canvas'
+				? await renderCanvas(app, file, component)
+				: await renderBase(app, file, component);
+			this.cleanupRenderedDom(el);
+			el.querySelectorAll('[data-callout]').forEach(node => {
+				const calloutType = node.getAttribute('data-callout');
+				if (calloutType) node.classList.add(`callout-${calloutType}`);
+			});
+			return { html: el.outerHTML, description };
+		} finally {
+			component.unload();
+		}
+	}
+
+	/**
+	 * Excalidraw inlines whole font files as data: URIs — a custom local font
+	 * can be ~10 MB. Large fonts are uploaded once as content-hashed assets and
+	 * referenced by URL; small subsets stay inline.
+	 */
+	private async externalizeDataFonts(html: string): Promise<string> {
+		const fontRe = /url\((["']?)data:((?:font|application)\/[\w.+-]+)[^,]*?;base64,([A-Za-z0-9+/=\s]+)\1\)/g;
+		const matches = Array.from(html.matchAll(fontRe)).filter(m => m[3].length > 64 * 1024);
+		if (matches.length === 0) return html;
+
+		const FONT_EXT: Record<string, string> = {
+			'font/woff2': 'woff2', 'font/woff': 'woff', 'font/ttf': 'ttf', 'font/otf': 'otf',
+			'application/font-woff': 'woff', 'application/x-font-ttf': 'ttf', 'application/x-font-otf': 'otf',
+		};
+		const replacements = new Map<string, string>();
+		for (const m of matches) {
+			if (replacements.has(m[0])) continue;
+			const mime = m[2].toLowerCase();
+			const ext = FONT_EXT[mime] || 'woff2';
+			try {
+				const url = await this.uploadAssetBuffer(base64ToBuffer(m[3]), ext, mime.startsWith('font/') ? mime : `font/${ext}`);
+				if (url) replacements.set(m[0], `url("${url}")`);
+			} catch {
+				// keep inline — heavier page, but the drawing still renders right
+			}
+		}
+		let out = html;
+		for (const [from, to] of replacements) out = out.split(from).join(to);
+		return out;
 	}
 
 	private async uploadInlineAssets(html: string, sourceFile: TFile, app: App): Promise<string> {
@@ -245,6 +322,13 @@ export class ShareApiService {
 			const response = await requestUrl({ url: src, throw: false });
 			if (response.status < 200 || response.status >= 300) return null;
 			return { buffer: response.arrayBuffer, ext: extOf(src) };
+		}
+
+		// blob: URLs are in-memory renders (e.g. embedded Excalidraw drawings)
+		if (/^blob:/.test(src)) {
+			const blob = await (await fetch(src)).blob();
+			const ext = Object.entries(ASSET_MIME).find(([, mime]) => mime === blob.type)?.[0] || 'png';
+			return { buffer: await blob.arrayBuffer(), ext };
 		}
 
 		// public web URLs stay as-is
@@ -391,6 +475,13 @@ export class ShareApiService {
 		root.querySelectorAll(
 			'[class*="snw-"], [data-snw-type], button, .metadata-container, .frontmatter, .frontmatter-container, .mod-frontmatter'
 		).forEach(el => el.remove());
+
+		// Live checkbox state is a DOM property, not necessarily an HTML attribute.
+		// Preserve it through serialization and make the shared snapshot read-only.
+		root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(checkbox => {
+			checkbox.toggleAttribute('checked', checkbox.checked);
+			checkbox.setAttribute('disabled', '');
+		});
 
 		// virtual-scroll leftovers: the pusher spacer and the sizer's inline
 		// min-height/padding would reserve phantom space on the share page
@@ -637,6 +728,20 @@ export class ShareApiService {
 		const desc = paragraphs.slice(0, 2).join(' ').replace(/\n/g, ' ').trim();
 		return desc.length > 200 ? desc.slice(0, 197) + '...' : desc;
 	}
+}
+
+/** True when the first non-blank line after the frontmatter is an H1 ("# Title"). */
+export function startsWithH1(markdown: string): boolean {
+	const body = markdown.replace(/^---\n[\s\S]*?\n---\n?/, '');
+	const first = body.split('\n').find(line => line.trim().length > 0);
+	return !!first && /^#[ \t]+\S/.test(first.trim());
+}
+
+function base64ToBuffer(b64: string): ArrayBuffer {
+	const binary = atob(b64.replace(/\s+/g, ''));
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+	return bytes.buffer;
 }
 
 /** Hangul ratio over the sampled text decides the page language. */

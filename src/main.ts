@@ -15,6 +15,7 @@ import { CMDSShareSettingTab } from './settings';
 import { CMSView } from './cms';
 import { ShareOptionsModal, ConfirmDeleteModal, SharedNotesModal } from './modals';
 import { generateShortId, sha256 } from './crypto';
+import { detectShareKind, displayBasename, registerBaseSnapshotView } from './renderers';
 
 interface SavedData {
 	settings?: Partial<CMDSShareSettings>;
@@ -34,13 +35,14 @@ export default class CMDSSharePlugin extends Plugin {
 		await this.loadSharedNotes();
 
 		this.registerView(CMS_VIEW_TYPE, (leaf) => new CMSView(leaf, this));
+		registerBaseSnapshotView(this);
 
 		this.addCommand({
 			id: 'share-note',
 			name: 'Share current note to web',
 			checkCallback: (checking: boolean) => {
 				const file = this.app.workspace.getActiveFile();
-				if (file) {
+				if (file && detectShareKind(file, this.app)) {
 					if (!checking) {
 						void this.shareNote(file);
 					}
@@ -100,7 +102,7 @@ export default class CMDSSharePlugin extends Plugin {
 
 		this.addRibbonIcon('share-2', 'CMDS Share', () => {
 			const file = this.app.workspace.getActiveFile();
-			if (file) {
+			if (file && detectShareKind(file, this.app)) {
 				void this.shareNote(file);
 			} else {
 				void this.openCMS();
@@ -109,7 +111,7 @@ export default class CMDSSharePlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.workspace.on('file-menu', (menu, file) => {
-				if (file instanceof TFile && file.extension === 'md') {
+				if (file instanceof TFile && detectShareKind(file, this.app)) {
 					menu.addItem((item) => {
 						item
 							.setTitle('Share to web')
@@ -242,6 +244,7 @@ export default class CMDSSharePlugin extends Plugin {
 			status: 'published',
 			encrypted: result.encrypted ?? response.encrypted,
 			provider: this.settings.activeProvider,
+			kind: result.kind,
 			vaultId: this.settings.vaultId,
 			vaultName: this.settings.vaultName,
 			createdAt: existing?.createdAt ?? now,
@@ -406,9 +409,12 @@ export default class CMDSSharePlugin extends Plugin {
 
 	private extractTitle(file: TFile, content: string): string {
 		const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+		const kind = detectShareKind(file, this.app);
 
 		switch (this.settings.titleSource) {
 			case 'h1': {
+				// a drawing's markdown holds element text, not a document heading
+				if (kind !== 'note') break;
 				const h1Match = content.match(/^#\s+(.+)$/m);
 				if (h1Match) return h1Match[1].trim();
 				break;
@@ -425,7 +431,7 @@ export default class CMDSSharePlugin extends Plugin {
 			}
 		}
 
-		return file.basename;
+		return displayBasename(file);
 	}
 
 	private calculateExpiration(expiration: string): number | undefined {

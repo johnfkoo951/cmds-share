@@ -81,6 +81,29 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName('Show title heading')
+			.setDesc('Display the share title (from the source above) as a heading at the top of the shared page, so the note body does not need its own "# Title" line.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.showTitleHeading)
+				.onChange(async (value) => {
+					this.plugin.settings.showTitleHeading = value;
+					await this.plugin.saveSettings();
+					this.display();
+				}));
+
+		new Setting(containerEl)
+			.setName('Skip title heading when the note starts with an H1')
+			.setDesc('If the first line after the frontmatter is already a "# Heading", do not add the title again. Turn off to always show the title heading, even above an existing H1.')
+			.setDisabled(!this.plugin.settings.showTitleHeading)
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.skipTitleHeadingIfH1)
+				.setDisabled(!this.plugin.settings.showTitleHeading)
+				.onChange(async (value) => {
+					this.plugin.settings.skipTitleHeadingIfH1 = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName('Share page theme')
 			.setDesc('Color palette for shared pages. "Follow my Obsidian theme" captures your current theme\'s colors at share time.')
 			.addDropdown(dropdown => dropdown

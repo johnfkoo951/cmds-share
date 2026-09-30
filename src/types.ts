@@ -9,6 +9,9 @@ export type ShareTheme = 'cmds' | 'mono' | 'sepia' | 'ocean' | 'obsidian';
 /** Where the share title comes from (missing sources fall back to the file name). */
 export type TitleSource = 'filename' | 'h1' | 'alias' | 'frontmatter';
 
+/** What kind of vault file a share was rendered from. */
+export type ShareKind = 'note' | 'excalidraw' | 'canvas' | 'base';
+
 /** One mode's worth of share-page colors. */
 export interface ThemeVars {
 	text: string;
@@ -39,6 +42,8 @@ export interface SharedNote {
 	status: ShareStatus;
 	encrypted: boolean;
 	provider: ServerProviderType;
+	/** Missing on shares made before 2.2 — treat as 'note'. */
+	kind?: ShareKind;
 	vaultId: string;
 	vaultName: string;
 	createdAt: number;
@@ -53,6 +58,7 @@ export interface ShareResult {
 	url?: string;
 	shortId?: string;
 	encrypted?: boolean;
+	kind?: ShareKind;
 	error?: string;
 }
 
@@ -131,6 +137,10 @@ export interface CMDSShareSettings {
 	encryptionMode: EncryptionMode;
 	shareTheme: ShareTheme;
 	titleSource: TitleSource;
+	/** Render the share title as a heading above the body. */
+	showTitleHeading: boolean;
+	/** ...unless the note body already opens with an H1 right after the frontmatter. */
+	skipTitleHeadingIfH1: boolean;
 	footerLinkUrl: string;
 	footerLinkLabel: string;
 	defaultExpiration: string;
@@ -162,6 +172,8 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	encryptionMode: 'auto',
 	shareTheme: 'cmds',
 	titleSource: 'filename',
+	showTitleHeading: true,
+	skipTitleHeadingIfH1: true,
 	footerLinkUrl: '',
 	footerLinkLabel: '',
 	defaultExpiration: '',
@@ -240,6 +252,11 @@ export interface NoteGraphData {
 
 export interface NoteTemplateData {
 	title: string;
+	/** Render `title` as a page heading above the body. */
+	showTitle?: boolean;
+	kind?: ShareKind;
+	/** 'wide' lifts the reading-width cap (canvas, drawings, bases). */
+	layout?: 'note' | 'wide';
 	palette: ThemePalette;
 	themeName: string;
 	footerLink?: { url: string; label: string };

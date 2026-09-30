@@ -3,12 +3,14 @@
 # CMDS Share
 Publish an Obsidian note as a web page, with hosting and privacy choices you can explain before sharing.
 
-**Version 2.1.1 | Available in Community Plugins.**
+**Version 2.2.0 | Available in Community Plugins.**
 
 Obsidian 1.7.2+ | Desktop and mobile.
 
 ## What it does
 - Publish/update a note and copy its link from the command palette.
+- Share Excalidraw drawings, canvases (pan/zoom viewer), and Bases (evaluated tables/cards), not just notes.
+- Show the note title as a page heading (optional; skipped when the note already opens with an H1).
 - Use GitHub Pages by default or choose a compatible managed/self-hosted backend.
 - Offer readers a table of contents, theme switching and Markdown copy/download.
 - Use optional note encryption; governance-server features depend on the selected host.
@@ -16,7 +18,7 @@ Obsidian 1.7.2+ | Desktop and mobile.
 ## Install and first use
 **Community:** Settings → Community plugins → Browse → **CMDS Share** → Install → Enable.
 
-**Manual:** Download `main.js`, `manifest.json`, and `styles.css` from [release 2.1.1](https://github.com/johnfkoo951/cmds-share/releases/tag/2.1.1), place them in `<vault>/.obsidian/plugins/cmds-share/`, reload Obsidian, and enable. Back up existing settings; do not copy another user’s `data.json`.
+**Manual:** Download `main.js`, `manifest.json`, and `styles.css` from [release 2.2.0](https://github.com/johnfkoo951/cmds-share/releases/tag/2.2.0), place them in `<vault>/.obsidian/plugins/cmds-share/`, reload Obsidian, and enable. Back up existing settings; do not copy another user’s `data.json`.
 
 Create a harmless sample note. Configure GitHub Pages and review the **public repository** setup, test the connection, then run **Share current note to web**. Wait for the Pages build and check the page/source in a signed-out browser.
 
@@ -28,7 +30,7 @@ Create a harmless sample note. Configure GitHub Pages and review the **public re
 - [Issues and support](https://github.com/johnfkoo951/cmds-share/issues)
 
 ## Privacy and limits
-GitHub Pages publishes to a public repository. Encrypted notes still upload images **unencrypted**. Server-enforced expiry, view counts and revoke/restore are not universal hosting features. The CMDSPACE managed instance is invite-only.
+GitHub Pages publishes to a public repository. Encrypted notes still upload images and drawing fonts **unencrypted**. A shared base publishes every row its filters match — check the result before sharing. Server-enforced expiry, view counts and revoke/restore are not universal hosting features. The CMDSPACE managed instance is invite-only.
 
 ## Development
 ```sh

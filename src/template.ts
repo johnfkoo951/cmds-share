@@ -75,6 +75,9 @@ function varsCss(v: ThemeVars): string {
 export function generateNoteHtml(data: NoteTemplateData): string {
 	const {
 		title,
+		showTitle,
+		kind = 'note',
+		layout = 'note',
 		palette,
 		themeName,
 		footerLink,
@@ -134,9 +137,19 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 
 	const decryptionScript = encrypted ? DECRYPTION_SCRIPT : '';
 
-	const bodyContent = encrypted
+	const KIND_LABEL: Record<string, string> = { excalidraw: 'Excalidraw', canvas: 'Canvas', base: 'Base' };
+	const kindPill = KIND_LABEL[kind]
+		? `<span class="cmds-doc-kind">${escapeHtml(KIND_LABEL[kind])}</span>`
+		: '';
+	// the title is already public in <title>/og:title, so the heading leaks
+	// nothing extra on encrypted shares
+	const titleHeader = showTitle
+		? `<header class="cmds-doc-header">${kindPill}<h1 class="cmds-doc-title">${safeTitle}</h1></header>`
+		: '';
+
+	const bodyContent = titleHeader + (encrypted
 		? '<article id="note-content" class="markdown-rendered"><p class="cmds-loading">Decrypting…</p></article>'
-		: `<article id="note-content" class="markdown-rendered">${content}</article>`;
+		: `<article id="note-content" class="markdown-rendered">${content}</article>`);
 
 	return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -209,6 +222,7 @@ body {
 	color: var(--text);
 	transition: border-color .15s, background .15s, color .15s;
 }
+.tool-btn[hidden] { display: none; }
 .tool-btn:hover { border-color: var(--accent); }
 .tool-btn.active { border-color: var(--accent); color: var(--accent); }
 .tool-btn svg { width: 16px; height: 16px; }
@@ -411,6 +425,156 @@ main {
 	color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: help;
 }
 
+/* ── title heading ── */
+.cmds-doc-header { margin: 0 0 2rem; }
+.cmds-doc-kind {
+	display: inline-block; margin-bottom: 0.7rem;
+	font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+	color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+	border-radius: 999px; padding: 0.2rem 0.65rem;
+}
+.cmds-doc-title {
+	font-size: clamp(1.9rem, 4.2vw, 2.6rem); font-weight: 800;
+	letter-spacing: -0.03em; line-height: 1.18; text-wrap: balance;
+}
+#note-content > :first-child, #note-content > .markdown-preview-sizer > :first-child { margin-top: 0; }
+
+/* ── wide layout (drawings, canvases, bases) ── */
+body.cmds-layout-wide { --max: 1320px; }
+body.cmds-layout-wide main { padding-top: 3.5rem; }
+
+/* ── Excalidraw ── */
+.cmds-excalidraw { margin: 0; }
+.cmds-excalidraw > svg {
+	border-radius: 14px; border: 1px solid var(--border);
+	box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 12px 32px rgba(0,0,0,0.10);
+}
+
+/* ── JSON Canvas ── */
+:root {
+	--cv-c1: #e93147; --cv-c2: #ec7500; --cv-c3: #e0ac00;
+	--cv-c4: #08b94e; --cv-c5: #00bfbc; --cv-c6: #7852ee;
+}
+.cmds-canvas {
+	position: relative; overflow: hidden; touch-action: none;
+	border: 1px solid var(--border); border-radius: 14px; height: 70vh; min-height: 320px;
+	background-color: var(--bg);
+	background-image: radial-gradient(circle, color-mix(in srgb, var(--muted) 35%, transparent) 1px, transparent 1.2px);
+	background-size: 22px 22px;
+	cursor: grab; user-select: none;
+}
+.cmds-canvas.dragging { cursor: grabbing; }
+.cmds-canvas:fullscreen { border-radius: 0; border: none; height: 100vh; }
+.cmds-canvas-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.cmds-canvas-empty { padding: 2rem; color: var(--muted); text-align: center; }
+.cv-group {
+	position: absolute; border-radius: 14px;
+	border: 2px solid var(--node-color, color-mix(in srgb, var(--muted) 45%, transparent));
+	background: color-mix(in srgb, var(--node-color, var(--muted)) 7%, transparent);
+}
+.cv-group-label {
+	position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;
+	font-size: 1.05rem; font-weight: 700; color: var(--node-color, var(--muted));
+	white-space: nowrap;
+}
+.cv-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.cv-edge path { fill: none; stroke: var(--edge-color, var(--muted)); stroke-width: 2.5; stroke-linecap: round; }
+.cv-edge polygon { fill: var(--edge-color, var(--muted)); stroke: var(--edge-color, var(--muted)); stroke-width: 1; stroke-linejoin: round; }
+.cv-edge-label {
+	position: absolute; transform: translate(-50%, -50%);
+	font-size: 0.8rem; font-weight: 600; padding: 0.15rem 0.55rem; border-radius: 6px;
+	background: var(--bg); color: var(--edge-color, var(--muted));
+	border: 1px solid color-mix(in srgb, var(--edge-color, var(--muted)) 40%, var(--border));
+	white-space: nowrap;
+}
+.cv-node {
+	position: absolute; display: flex; flex-direction: column;
+	border-radius: 12px; overflow: visible;
+	border: 2px solid var(--node-color, var(--border));
+	background: color-mix(in srgb, var(--node-color, transparent) 9%, var(--card-bg));
+	box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.06);
+}
+.cv-body {
+	flex: 1; min-height: 0; overflow: auto; padding: 0.9rem 1.1rem;
+	font-size: 0.95rem; line-height: 1.6; user-select: text; cursor: auto;
+	border-radius: 10px; overscroll-behavior: contain;
+}
+#note-content .cv-body > :first-child { margin-top: 0 !important; }
+#note-content .cv-body > :last-child { margin-bottom: 0 !important; }
+#note-content .cv-body h1 { font-size: 1.45rem; border: none; padding: 0; margin: 0.6rem 0 0.4rem; }
+#note-content .cv-body h2 { font-size: 1.2rem; margin: 0.6rem 0 0.4rem; }
+#note-content .cv-body h3, #note-content .cv-body h4 { font-size: 1.02rem; margin: 0.5rem 0 0.3rem; }
+#note-content .cv-body .h-anchor { display: none; }
+.cv-file-label {
+	position: absolute; bottom: 100%; left: 2px; margin-bottom: 4px;
+	font-size: 0.78rem; font-weight: 600; color: var(--muted);
+	white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.cv-image { background: transparent; box-shadow: none; border-color: transparent; }
+.cv-image img { width: 100%; height: 100%; object-fit: contain; border-radius: 10px; }
+.cv-body .cmds-excalidraw { border: none; padding: 0; background: transparent; }
+.cv-missing { color: var(--muted); font-style: italic; display: grid; place-items: center; }
+.cv-link-card {
+	flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.3rem;
+	padding: 1rem 1.2rem; text-decoration: none; color: var(--text); cursor: pointer; min-height: 0;
+}
+.cv-link-host { font-weight: 700; font-size: 1rem; color: var(--accent); }
+.cv-link-url { font-size: 0.78rem; color: var(--muted); word-break: break-all; overflow: hidden; }
+.cmds-canvas-ui {
+	position: absolute; right: 12px; bottom: 12px; z-index: 2;
+	display: flex; gap: 4px; padding: 4px; border-radius: 10px;
+	background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+	border: 1px solid var(--border); backdrop-filter: blur(8px);
+}
+.cmds-canvas-ui button {
+	width: 30px; height: 30px; border: none; border-radius: 7px; cursor: pointer;
+	background: transparent; color: var(--text); display: grid; place-items: center;
+}
+.cmds-canvas-ui button:hover { background: var(--code-bg); color: var(--accent); }
+.cmds-canvas-ui svg { width: 15px; height: 15px; }
+.cmds-canvas-hint {
+	position: absolute; left: 12px; bottom: 12px; z-index: 2;
+	font-size: 0.72rem; color: var(--muted); pointer-events: none;
+	background: color-mix(in srgb, var(--card-bg) 80%, transparent); padding: 0.2rem 0.5rem; border-radius: 6px;
+}
+
+/* ── Bases ── */
+.cmds-base-section + .cmds-base-section { margin-top: 2.5rem; }
+#note-content .cmds-base-view-name { font-size: 1.2rem; border: none; padding: 0; margin: 0 0 0.6rem; }
+.cmds-base-count { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.8rem; font-variant-numeric: tabular-nums; }
+.cmds-base-group + .cmds-base-group { margin-top: 1.6rem; }
+.cmds-base-group-head {
+	display: flex; align-items: center; gap: 0.5rem;
+	font-weight: 700; font-size: 1rem; margin-bottom: 0.5rem;
+}
+.cmds-base-group-label.is-empty { color: var(--muted); font-weight: 500; font-style: italic; }
+.cmds-base-group-count {
+	font-size: 0.72rem; font-weight: 600; color: var(--muted);
+	background: var(--code-bg); border-radius: 999px; padding: 0.05rem 0.5rem;
+}
+.cmds-base-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+#note-content table.cmds-base-table { display: table; table-layout: fixed; margin: 0; border: none; width: 100%; max-width: none; border-collapse: collapse; font-size: 0.9rem; }
+#note-content .cmds-base-table th {
+	position: sticky; top: 0; text-align: left; white-space: nowrap;
+	font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+	color: var(--muted); background: var(--card-bg);
+	border: none; border-bottom: 1px solid var(--border); padding: 0.6rem 0.9rem;
+}
+#note-content .cmds-base-table td { border: none; border-bottom: 1px solid var(--border); padding: 0.55rem 0.9rem; vertical-align: top; }
+#note-content .cmds-base-table tr:last-child td { border-bottom: none; }
+#note-content .cmds-base-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.cmds-base-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.9rem; }
+.cmds-base-card { border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem 1rem; background: var(--card-bg); }
+.cmds-base-card-title { font-weight: 700; margin-bottom: 0.5rem; }
+.cmds-base-card-prop { display: flex; gap: 0.6rem; font-size: 0.82rem; line-height: 1.5; }
+.cmds-base-card-key { color: var(--muted); flex: 0 0 38%; overflow: hidden; text-overflow: ellipsis; }
+.cmds-base-card-val { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#note-content .cmds-base .value-list-container { display: flex; flex-wrap: wrap; gap: 4px; }
+#note-content .cmds-base .value-list-element {
+	background: var(--code-bg); border-radius: 6px; padding: 0 0.4rem; font-size: 0.85em;
+}
+#note-content .cmds-base .value-list-element p { margin: 0; }
+
 .cmds-meta {
 	max-width: var(--max); margin: 0 auto;
 	padding: 2rem 1.5rem 2rem; border-top: 1px solid var(--border);
@@ -448,8 +612,26 @@ main {
 }
 </style>
 ${cssLink}
+<style>
+/* Exported themes can suppress native controls and depend on app-only variables.
+   Keep snapshot checkboxes self-contained, even when theme CSS is included. */
+#note-content li.task-list-item { list-style: none !important; }
+#note-content input[type="checkbox"] {
+	all: revert !important;
+	appearance: auto !important;
+	display: inline-block !important;
+	position: static !important;
+	width: 1em !important; height: 1em !important;
+	margin: 0 0.5em 0 0 !important;
+	vertical-align: -0.1em !important;
+	opacity: 1 !important;
+	accent-color: var(--accent) !important;
+}
+#note-content input[type="checkbox"]::before,
+#note-content input[type="checkbox"]::after { content: none !important; display: none !important; }
+</style>
 </head>
-<body>
+<body class="cmds-kind-${kind} cmds-layout-${layout}">
 
 <div class="side-tools">
 	<button class="tool-btn" id="themeToggle" aria-label="Toggle theme">
@@ -602,9 +784,129 @@ ${decryptionScript}
 </script>
 
 ${PANELS_SCRIPT}
+${kind === 'canvas' ? CANVAS_SCRIPT : ''}
 </body>
 </html>`;
 }
+
+// Pan / zoom viewer for shared canvases. Drag to pan; Ctrl/⌘ + wheel or
+// trackpad pinch to zoom (plain wheel keeps scrolling the page, except in
+// fullscreen); two-finger pinch on touch screens.
+const CANVAS_SCRIPT = `
+<script>
+(function() {
+	var ICONS = {
+		minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+		plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+		fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg>',
+		full: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>'
+	};
+
+	function setup(root) {
+		var world = root.querySelector('.cmds-canvas-world');
+		if (!world) return;
+		var W = +root.getAttribute('data-w') || 1, H = +root.getAttribute('data-h') || 1;
+		var s = 1, tx = 0, ty = 0;
+		var ko = document.documentElement.lang === 'ko';
+
+		function apply() { world.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')'; }
+		function fit() {
+			var r = root.getBoundingClientRect();
+			s = Math.min(r.width / W, r.height / H, 1.2);
+			tx = (r.width - W * s) / 2; ty = (r.height - H * s) / 2;
+			apply();
+		}
+		function zoomAt(factor, cx, cy) {
+			var ns = Math.min(4, Math.max(0.08, s * factor));
+			tx = cx - (cx - tx) * (ns / s); ty = cy - (cy - ty) * (ns / s); s = ns;
+			apply();
+		}
+		function center() { var r = root.getBoundingClientRect(); return [r.width / 2, r.height / 2]; }
+
+		// size the viewport to the board's aspect ratio (within limits)
+		var width = root.getBoundingClientRect().width || 800;
+		root.style.height = Math.max(320, Math.min(window.innerHeight * 0.78, H * Math.min(width / W, 1) + 24)) + 'px';
+
+		var ui = document.createElement('div');
+		ui.className = 'cmds-canvas-ui';
+		[['minus', ko ? '축소' : 'Zoom out', function() { var c = center(); zoomAt(1 / 1.25, c[0], c[1]); }],
+		 ['plus', ko ? '확대' : 'Zoom in', function() { var c = center(); zoomAt(1.25, c[0], c[1]); }],
+		 ['fit', ko ? '화면에 맞추기' : 'Fit to view', fit],
+		 ['full', ko ? '전체 화면' : 'Fullscreen', function() {
+			if (document.fullscreenElement) document.exitFullscreen();
+			else if (root.requestFullscreen) root.requestFullscreen();
+		 }]].forEach(function(b) {
+			var btn = document.createElement('button');
+			btn.type = 'button'; btn.innerHTML = ICONS[b[0]]; btn.title = b[1]; btn.setAttribute('aria-label', b[1]);
+			btn.addEventListener('click', function(e) { e.stopPropagation(); b[2](); });
+			btn.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+			ui.appendChild(btn);
+		});
+		root.appendChild(ui);
+		var hint = document.createElement('div');
+		hint.className = 'cmds-canvas-hint';
+		hint.textContent = ko ? '드래그로 이동 · Ctrl/⌘ + 스크롤로 확대' : 'Drag to pan · Ctrl/⌘ + scroll to zoom';
+		root.appendChild(hint);
+
+		root.addEventListener('wheel', function(e) {
+			var r = root.getBoundingClientRect();
+			if (e.ctrlKey || e.metaKey) {
+				e.preventDefault();
+				zoomAt(Math.exp(-e.deltaY * 0.0022), e.clientX - r.left, e.clientY - r.top);
+			} else if (document.fullscreenElement === root) {
+				e.preventDefault();
+				tx -= e.deltaX; ty -= e.deltaY; apply();
+			}
+		}, { passive: false });
+
+		var pointers = {}, last = null, pinch = null;
+		root.addEventListener('pointerdown', function(e) {
+			// let text selection, links, and scrolling work inside cards
+			if (e.target.closest('.cv-body, a')) return;
+			pointers[e.pointerId] = [e.clientX, e.clientY];
+			root.setPointerCapture(e.pointerId);
+			root.classList.add('dragging');
+			last = [e.clientX, e.clientY];
+			hint.style.display = 'none';
+		});
+		root.addEventListener('pointermove', function(e) {
+			if (!pointers[e.pointerId]) return;
+			pointers[e.pointerId] = [e.clientX, e.clientY];
+			var ids = Object.keys(pointers);
+			if (ids.length === 2) {
+				var a = pointers[ids[0]], b = pointers[ids[1]];
+				var d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+				var r = root.getBoundingClientRect();
+				if (pinch) zoomAt(d / pinch, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top);
+				pinch = d;
+				return;
+			}
+			if (last) { tx += e.clientX - last[0]; ty += e.clientY - last[1]; apply(); }
+			last = [e.clientX, e.clientY];
+		});
+		function up(e) {
+			delete pointers[e.pointerId];
+			pinch = null;
+			var ids = Object.keys(pointers);
+			last = ids.length ? pointers[ids[0]] : null;
+			if (!ids.length) root.classList.remove('dragging');
+		}
+		root.addEventListener('pointerup', up);
+		root.addEventListener('pointercancel', up);
+		document.addEventListener('fullscreenchange', function() { requestAnimationFrame(fit); });
+		window.addEventListener('resize', function() { requestAnimationFrame(fit); });
+		fit();
+	}
+
+	function init() { document.querySelectorAll('#note-content .cmds-canvas').forEach(setup); }
+	if (document.getElementById('encrypted-data') && !window.__cmdsReady) {
+		document.addEventListener('cmds-content-ready', init, { once: true });
+	} else {
+		init();
+	}
+})();
+</script>
+`;
 
 const DECRYPTION_SCRIPT = `
 <script>
@@ -726,7 +1028,11 @@ const PANELS_SCRIPT = `
 	}
 
 	function headings() {
-		return document.querySelectorAll('#note-content h1, #note-content h2, #note-content h3, #note-content h4');
+		// headings inside canvas cards are card content, not document structure
+		return Array.prototype.filter.call(
+			document.querySelectorAll('#note-content h1, #note-content h2, #note-content h3, #note-content h4'),
+			function(h) { return !h.closest('.cmds-canvas'); }
+		);
 	}
 
 	function assignHeadingIds() {
