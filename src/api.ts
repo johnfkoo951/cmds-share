@@ -1,9 +1,10 @@
 import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags, setIcon, requestUrl } from 'obsidian';
-import { CMDSShareSettings, SharedNote, ShareResult, ShareKind, ServerProviderType, NoteGraphData, ThemePalette, ThemeVars } from './types';
+import { CMDSShareSettings, SharedNote, ShareResult, ShareKind, ServerProviderType, NoteGraphData, NoteTemplateData, ThemePalette } from './types';
 import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta, GitHubProvider, GitHubSetupResult } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
 import { generateNoteHtml, PALETTES } from './template';
 import { detectShareKind, renderBase, renderCanvas, renderExcalidraw } from './renderers';
+import { ThemeSnapshotStore, currentThemeName, extractObsidianPalette } from './theme-snapshot';
 
 const ASSET_MIME: Record<string, string> = {
 	png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
@@ -37,7 +38,7 @@ export class ShareApiService {
 	private settings: CMDSShareSettings;
 	private provider: ServerProvider | null = null;
 
-	constructor(settings: CMDSShareSettings) {
+	constructor(settings: CMDSShareSettings, private themeStore?: ThemeSnapshotStore) {
 		this.settings = settings;
 		this.initProvider();
 	}
@@ -147,13 +148,12 @@ export class ShareApiService {
 				showTitle,
 				kind,
 				layout: kind === 'note' ? 'note' : 'wide',
-				palette: this.resolvePalette(),
-				themeName: this.themeDisplayName(app),
+				...await this.resolveTheme(app),
+				colorMode: this.settings.shareColorMode,
 				footerLink: this.footerLink(),
 				content: shouldEncrypt ? '' : htmlContent,
 				url: publicUrl,
 				lang: detectLang(shouldEncrypt || kind !== 'note' ? `${title} ${description}` : `${title} ${content.slice(0, 2000)}`),
-				cssUrl: await this.uploadCss(),
 				noteWidth: this.settings.noteWidth,
 				encrypted: shouldEncrypt,
 				encryptedData: shouldEncrypt ? finalEncryptedData : undefined,
@@ -406,60 +406,38 @@ export class ShareApiService {
 		}
 	}
 
-	private async uploadCss(): Promise<string | undefined> {
-		if (!this.settings.includeTheme || !this.provider) {
-			return undefined;
-		}
-
-		try {
-			const css = this.extractCss();
-			if (!css) {
-				return undefined;
-			}
-
-			const cssHash = await sha1(css);
-			const filename = `css/${cssHash}.css`;
-			const result = await this.provider.upload(css, filename, 'text/css');
-
-			return result.success ? result.url || this.provider.getPublicUrl(filename) : undefined;
-		} catch {
-			return undefined;
-		}
-	}
-
-	private extractCss(): string {
-		const SELECTOR_WHITELIST = [
-			'.markdown-preview-view', '.markdown-rendered',
-			'.callout', '.cm-callout', '.internal-link', '.external-link', '.tag',
-			'.cm-strong', '.cm-em', '.cm-link', 'pre', 'code', 'blockquote',
-			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'th', 'td', 'img',
-			'a', 'p', 'ul', 'ol', 'li', 'hr', 'mark', 'del',
-		];
-		const matchesWhitelist = (selector: string): boolean => {
-			return SELECTOR_WHITELIST.some(w => selector.includes(w));
-		};
-
-		try {
-			const rules: string[] = [];
-			Array.from(document.styleSheets).forEach(sheet => {
-				try {
-					Array.from(sheet.cssRules).forEach(rule => {
-						const text = rule.cssText;
-						if (text.includes('@media print')) return;
-						if (rule instanceof CSSStyleRule) {
-							if (matchesWhitelist(rule.selectorText)) rules.push(text);
-						} else if (rule.constructor.name === 'CSSMediaRule' || rule.constructor.name === 'CSSSupportsRule') {
-							rules.push(text);
-						}
-					});
-				} catch {
-					// Cross-origin stylesheet, skip
+	/**
+	 * Full-look mode uploads the theme snapshot once per provider (content
+	 * hashed, so earlier shares keep pointing at the CSS they were made with).
+	 * Any failure falls back to the theme's colors on CMDS typography.
+	 */
+	private async resolveTheme(app: App): Promise<Pick<NoteTemplateData, 'palette' | 'themeName' | 'cssUrl' | 'nativeTheme'>> {
+		if (this.settings.shareTheme === 'obsidian-native' && this.themeStore && this.provider) {
+			try {
+				const { meta, css } = await this.themeStore.ensure();
+				const filename = `css/${meta.hash}.css`;
+				const target = this.provider.getPublicUrl(filename);
+				let cssUrl: string | undefined = meta.uploads[target];
+				if (!cssUrl) {
+					const result = await this.provider.upload(css, filename, 'text/css');
+					if (result.success) {
+						cssUrl = result.url || target;
+						await this.themeStore.recordUpload(target, cssUrl);
+					}
 				}
-			});
-			return rules.join('').replace(/\n/g, '');
-		} catch {
-			return '';
+				if (cssUrl) {
+					return {
+						palette: meta.palette,
+						themeName: `${meta.name} (Obsidian)`,
+						cssUrl,
+						nativeTheme: { bodyClasses: meta.bodyClasses, bodyStyle: meta.bodyStyle },
+					};
+				}
+			} catch {
+				// fall through to colors only
+			}
 		}
+		return { palette: this.resolvePalette(), themeName: this.themeDisplayName(app) };
 	}
 
 	/**
@@ -622,23 +600,20 @@ export class ShareApiService {
 
 	private themeDisplayName(app: App): string {
 		const theme = this.settings.shareTheme || 'cmds';
-		if (theme === 'obsidian') {
-			const custom = (app as unknown as { customCss?: { theme?: string } }).customCss?.theme;
-			return custom ? `${custom} (Obsidian)` : 'Obsidian';
-		}
+		if (theme === 'obsidian' || theme === 'obsidian-native') return `${currentThemeName(app)} (Obsidian)`;
 		return { cmds: 'CMDS', mono: 'Mono', sepia: 'Sepia', ocean: 'Ocean' }[theme] || 'CMDS';
 	}
 
 	private resolvePalette(): ThemePalette {
 		const theme = this.settings.shareTheme || 'cmds';
-		if (theme === 'obsidian') {
+		if (theme === 'obsidian' || theme === 'obsidian-native') {
 			try {
 				return extractObsidianPalette();
 			} catch {
 				return PALETTES.cmds;
 			}
 		}
-		return PALETTES[theme] || PALETTES.cmds;
+		return PALETTES[theme as keyof typeof PALETTES] || PALETTES.cmds;
 	}
 
 	private collectGraphData(file: TFile, title: string, app: App): NoteGraphData | undefined {
@@ -750,104 +725,6 @@ function detectLang(sample: string): 'ko' | 'en' {
 	if (letters.length === 0) return 'en';
 	const hangul = (letters.match(/[가-힣]/g) || []).length;
 	return hangul / letters.length > 0.05 ? 'ko' : 'en';
-}
-
-
-// ═══ "Follow my Obsidian theme" palette extraction ═══
-// A probe element carrying .theme-light / .theme-dark picks up the theme's CSS
-// custom properties (rules are class-scoped, not body-scoped, in most themes),
-// and getComputedStyle resolves var() chains for us.
-
-const OBSIDIAN_VARS = [
-	'--background-primary',
-	'--background-primary-alt',
-	'--background-secondary',
-	'--text-normal',
-	'--text-muted',
-	'--text-accent',
-	'--text-accent-hover',
-	'--background-modifier-border',
-	'--code-background',
-] as const;
-
-function normalizeCssValue(value: string): string {
-	return value.replace(/\s+/g, ' ').trim();
-}
-
-function readVars(el: Element): Record<string, string> {
-	const computed = getComputedStyle(el);
-	const out: Record<string, string> = {};
-	for (const name of OBSIDIAN_VARS) {
-		const value = normalizeCssValue(computed.getPropertyValue(name));
-		if (value) out[name] = value;
-	}
-	return out;
-}
-
-/** Best-effort read of the NON-active mode via a probe carrying the theme class.
- * Themes that scope vars to body.theme-* defeat this — callers must sanity-check. */
-function probeThemeVars(mode: 'theme-light' | 'theme-dark'): Record<string, string> {
-	const probe = document.body.createDiv({ cls: mode });
-	probe.setCssStyles({ position: 'absolute', visibility: 'hidden' });
-	try {
-		return readVars(probe);
-	} finally {
-		probe.remove();
-	}
-}
-
-function luminance(color: string): number {
-	// crude but sufficient: parse #rgb/#rrggbb or rgb()
-	let r = 0, g = 0, b = 0;
-	const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-	const rgb = color.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
-	if (hex) {
-		let h = hex[1];
-		if (h.length === 3) h = h.split('').map(c => c + c).join('');
-		r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
-	} else if (rgb) {
-		r = Number(rgb[1]); g = Number(rgb[2]); b = Number(rgb[3]);
-	} else {
-		return 0.5;
-	}
-	return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-}
-
-function toVars(v: Record<string, string>, fallback: ThemeVars): ThemeVars {
-	const accent = v['--text-accent'] || fallback.accent;
-	return {
-		text: v['--text-normal'] || fallback.text,
-		muted: v['--text-muted'] || fallback.muted,
-		bg: v['--background-primary'] || fallback.bg,
-		accent,
-		accentLight: v['--text-accent-hover'] || accent,
-		accentOn: luminance(accent) > 0.55 ? '#111' : '#fff',
-		border: v['--background-modifier-border'] || fallback.border,
-		codeBg: v['--background-secondary'] || fallback.codeBg,
-		cardBg: v['--background-primary-alt'] || v['--background-secondary'] || fallback.cardBg,
-		preBg: v['--code-background'] || v['--background-secondary'] || fallback.preBg,
-		preFg: v['--text-normal'] || fallback.preFg,
-		graphNote: accent,
-	};
-}
-
-function extractObsidianPalette(): ThemePalette {
-	const isDark = document.body.classList.contains('theme-dark');
-	// the ACTIVE mode reads exactly from live computed styles
-	const active = toVars(readVars(document.body), isDark ? PALETTES.cmds.dark : PALETTES.cmds.light);
-	// the other mode comes from a class probe — reject implausible results
-	const probed = toVars(
-		probeThemeVars(isDark ? 'theme-light' : 'theme-dark'),
-		isDark ? PALETTES.cmds.light : PALETTES.cmds.dark
-	);
-	const plausible = (vars: ThemeVars, mode: 'light' | 'dark'): ThemeVars => {
-		const lum = luminance(vars.bg);
-		const ok = mode === 'light' ? lum > 0.5 : lum < 0.5;
-		return ok ? vars : PALETTES.cmds[mode];
-	};
-	return isDark
-		? { light: plausible(probed, 'light'), dark: plausible(active, 'dark') }
-		: { light: plausible(active, 'light'), dark: plausible(probed, 'dark') };
 }
 
 

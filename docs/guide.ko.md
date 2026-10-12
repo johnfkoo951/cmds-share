@@ -63,8 +63,8 @@ CMS에서 조회, 재공유, 삭제를 수행합니다. 거버넌스 서버의 �
 |---|---|
 | Vault Identity | Vault display name과 Vault ID는 발행 볼트를 식별; 충돌 우회 목적으로 임의 변경하지 않기 |
 | Server Provider | Active provider는 이후 작업의 목적지 |
-| Sharing | Share title source, Show title heading, Skip title heading when the note starts with an H1, Share page theme, Footer link와 label, Encryption mode, Default expiration |
-| 렌더링 | Include theme CSS, Remove backlinks, Remove frontmatter, Note width |
+| Sharing | Share title source, Show title heading, Skip title heading when the note starts with an H1, Share page theme(CMDS 팔레트, My Obsidian theme — colors only / full look), 공유 테마 캡처(full look), Light/dark mode, Footer link와 label, Encryption mode, Default expiration |
+| 렌더링 | Remove backlinks, Remove frontmatter, Note width |
 | Frontmatter Fields | Share field, Link field, Encrypted field, Expires field는 노트에서 쓸 필드 이름 |
 | CMS Dashboard | Enable CMS dashboard, Auto refresh |
 | Advanced | Debug mode; 지원에 보내기 전 비밀정보 제거 |
@@ -77,7 +77,7 @@ CMS에서 조회, 재공유, 삭제를 수행합니다. 거버넌스 서버의 �
 Remove frontmatter는 다운로드 Markdown의 앞쪽 YAML도 제거합니다. 본문, 주석 등 임의의 민감정보까지 지우지는 않으며 backlink 표시 제어도 완전한 원문 새니타이저는 아닙니다. 공개용 원본을 따로 준비하고 다운로드된 Markdown까지 확인합니다. 호스트 변경만으로 이전 공유물이 이관되거나 이전 URL이 철회되지는 않습니다.
 
 ## 이미지, 링크, 페이지 기능
-Obsidian 렌더링과 테마 CSS를 사용해 읽기 화면을 재현합니다. 목차, 제목 링크, 코드 복사, 라이트/다크 모드, 그래프/목차 표시 제어를 제공합니다. 복잡한 플러그인, 스크립트, 로컬 파일 참조, 모든 사용자 테마의 동작을 독립 브라우저에서 보장하지는 않습니다.
+Obsidian 렌더링으로 읽기 화면을 재현합니다. **My Obsidian theme — full look**을 고르면 내 테마 CSS(앱 기본 스타일, 커뮤니티 테마, 켜 둔 스니펫, Style Settings)의 스냅샷도 함께 실립니다. 스냅샷은 첫 공유 때 또는 **Capture current theme** 버튼으로 찍히며 고정됩니다. 이후 Obsidian 테마를 바꿔도 다시 캡처하고 재공유하기 전까지 공유 페이지는 그대로이고, 예전에 올린 페이지는 당시 CSS를 유지합니다. 암호화 노트여도 이 CSS 파일은 호스트에 공개됩니다. 목차, 제목 링크, 코드 복사, 라이트/다크 모드, 그래프/목차 표시 제어를 제공합니다. 복잡한 플러그인, 스크립트, 로컬 파일 참조, 모든 사용자 테마의 동작을 독립 브라우저에서 보장하지는 않습니다.
 Eagle 자료는 외부에서 읽을 수 있는 클라우드 URL 또는 Share가 업로드할 수 있는 지원 이미지로 준비합니다. `file://`는 특정 컴퓨터의 경로이며 `eagle://`는 앱 이동 링크입니다. 내 라이브러리가 없는 기기에서도 확인합니다.
 페이지에는 원본 Markdown 복사/다운로드도 들어갑니다. 그래프는 링크/태그 이름을 드러낼 수 있고 암호화 공유에서는 해당 그래프 메타데이터를 제외합니다. 첫 화면뿐 아니라 원본과 전체 렌더링을 검토합니다.
 

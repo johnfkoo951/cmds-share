@@ -4,7 +4,11 @@ export type ShareStatus = 'draft' | 'published' | 'archived' | 'expired';
 
 export type EncryptionMode = 'auto' | 'always' | 'never';
 
-export type ShareTheme = 'cmds' | 'mono' | 'sepia' | 'ocean' | 'obsidian';
+/** 'obsidian' = theme colors only; 'obsidian-native' = the full theme CSS snapshot. */
+export type ShareTheme = 'cmds' | 'mono' | 'sepia' | 'ocean' | 'obsidian' | 'obsidian-native';
+
+/** How shared pages pick light/dark: the viewer's preference (with a toggle) or a fixed mode. */
+export type ShareColorMode = 'auto' | 'light' | 'dark';
 
 /** Where the share title comes from (missing sources fall back to the file name). */
 export type TitleSource = 'filename' | 'h1' | 'alias' | 'frontmatter';
@@ -31,6 +35,23 @@ export interface ThemeVars {
 export interface ThemePalette {
 	light: ThemeVars;
 	dark: ThemeVars;
+}
+
+/** A frozen copy of the user's Obsidian theme; the CSS itself lives in the plugin folder. */
+export interface ThemeSnapshot {
+	name: string;
+	/** sha1 of the CSS — also its upload path (css/<hash>.css), so old shares keep their look. */
+	hash: string;
+	capturedAt: number;
+	bytes: number;
+	/** Body classes the theme / Style Settings key on (window-state classes stripped). */
+	bodyClasses: string;
+	/** Inline variables Obsidian sets on <body> (accent color, font size…). */
+	bodyStyle: string;
+	/** Colors for the page chrome (toolbar, panels, footer) around the themed note. */
+	palette: ThemePalette;
+	/** Upload target (provider public URL of the CSS path) → URL the provider returned. */
+	uploads: Record<string, string>;
 }
 
 export interface SharedNote {
@@ -136,6 +157,8 @@ export interface CMDSShareSettings {
 	activeProvider: ServerProviderType;
 	encryptionMode: EncryptionMode;
 	shareTheme: ShareTheme;
+	shareColorMode: ShareColorMode;
+	themeSnapshot: ThemeSnapshot | null;
 	titleSource: TitleSource;
 	/** Render the share title as a heading above the body. */
 	showTitleHeading: boolean;
@@ -144,7 +167,6 @@ export interface CMDSShareSettings {
 	footerLinkUrl: string;
 	footerLinkLabel: string;
 	defaultExpiration: string;
-	includeTheme: boolean;
 	removeBacklinks: boolean;
 	removeFrontmatter: boolean;
 	noteWidth: string;
@@ -171,13 +193,14 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	activeProvider: 'github',
 	encryptionMode: 'auto',
 	shareTheme: 'cmds',
+	shareColorMode: 'auto',
+	themeSnapshot: null,
 	titleSource: 'filename',
 	showTitleHeading: true,
 	skipTitleHeadingIfH1: true,
 	footerLinkUrl: '',
 	footerLinkLabel: '',
 	defaultExpiration: '',
-	includeTheme: true,
 	removeBacklinks: true,
 	removeFrontmatter: true,
 	noteWidth: '750px',
@@ -259,6 +282,9 @@ export interface NoteTemplateData {
 	layout?: 'note' | 'wide';
 	palette: ThemePalette;
 	themeName: string;
+	colorMode?: ShareColorMode;
+	/** Set when the page carries the full Obsidian theme CSS (cssUrl) instead of CMDS typography. */
+	nativeTheme?: { bodyClasses: string; bodyStyle: string };
 	footerLink?: { url: string; label: string };
 	content: string;
 	url?: string;

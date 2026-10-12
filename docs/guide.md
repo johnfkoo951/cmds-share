@@ -63,8 +63,8 @@ Use the CMS to inspect, re-share, or delete entries. Governance-host revocation 
 |---|---|
 | Vault Identity | Vault display name and Vault ID identify the publishing vault; do not casually change identity to bypass a conflict |
 | Server Provider | Active provider chooses the destination for later operations |
-| Sharing | Share title source; Show title heading; Skip title heading when the note starts with an H1; Share page theme; Footer link and label; Encryption mode; Default expiration |
-| Rendering | Include theme CSS; Remove backlinks; Remove frontmatter; Note width |
+| Sharing | Share title source; Show title heading; Skip title heading when the note starts with an H1; Share page theme (CMDS palettes, My Obsidian theme — colors only / full look); Shared theme capture (full look); Light/dark mode; Footer link and label; Encryption mode; Default expiration |
+| Rendering | Remove backlinks; Remove frontmatter; Note width |
 | Frontmatter Fields | Share field, Link field, Encrypted field, Expires field control names used in your notes |
 | CMS Dashboard | Enable CMS dashboard; Auto refresh |
 | Advanced | Debug mode; keep diagnostics free of secrets before sending them |
@@ -77,7 +77,7 @@ Use the CMS to inspect, re-share, or delete entries. Governance-host revocation 
 Remove frontmatter also strips leading YAML from the downloadable Markdown. It does not scrub arbitrary sensitive prose, comments or other original source content; backlink display controls are not a complete source sanitizer. Publish a clean source note and inspect the downloadable Markdown. Switching providers does not migrate every old share or revoke the old host's URLs.
 
 ## Images, links, and page features
-The publisher uses Obsidian rendering and theme CSS to approximate the note's reading view. Pages offer a table of contents, heading links, code copying, light/dark mode, and graph/TOC display controls. Complex plugins, scripts, local-file references, and every custom theme are not guaranteed to work in a standalone browser.
+The publisher uses Obsidian rendering to approximate the note's reading view. With **My Obsidian theme — full look**, the page also loads a snapshot of your theme CSS (app styles, community theme, enabled snippets, Style Settings), captured on first share or with **Capture current theme**. The snapshot is frozen: changing your Obsidian theme later does not restyle shares until you capture again and re-share, and earlier pages keep the CSS they were published with. The CSS file is public on the host even for encrypted notes. Pages offer a table of contents, heading links, code copying, light/dark mode, and graph/TOC display controls. Complex plugins, scripts, local-file references, and every custom theme are not guaranteed to work in a standalone browser.
 Before sharing Eagle material, prefer a readable cloud URL or a supported image that Share can upload. `file://` is machine-local and `eagle://` navigates into a desktop app; neither is a public image host. Test from a device without your local library.
 The page also carries Markdown copy/download tools. A graph may reveal link/tag names; encrypted shares omit that graph metadata. Always review source and rendered output, not just the visible first screen.
 

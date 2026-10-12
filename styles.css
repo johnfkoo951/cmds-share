@@ -315,3 +315,21 @@
 .cmds-share-base-preview .cmds-base-card-title { font-weight: 700; margin-bottom: 4px; }
 .cmds-share-base-preview .cmds-base-card-prop { display: flex; gap: 8px; font-size: 0.82em; }
 .cmds-share-base-preview .cmds-base-card-key { color: var(--text-muted); flex: 0 0 38%; }
+
+/* ═══ Share-link property actions ═══ */
+
+/* this row belongs to CMDS Share — another share plugin's buttons would act on the wrong service */
+.cmds-share-owned-link .share-note-icons { display: none; }
+
+.cmds-share-link-actions {
+	display: inline-flex; align-items: center; gap: 2px;
+	margin-right: 6px; flex-shrink: 0;
+}
+.cmds-share-link-actions .clickable-icon {
+	padding: 3px; border-radius: 5px; color: var(--text-muted);
+}
+.cmds-share-link-actions .clickable-icon svg { width: 15px; height: 15px; }
+.cmds-share-link-actions .clickable-icon:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.cmds-share-link-actions .mod-warning:hover { color: var(--text-error); }
+.cmds-share-link-actions .mod-restore { color: var(--color-green); }
+.cmds-share-owned-link .metadata-property-value { display: flex; align-items: center; }

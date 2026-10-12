@@ -16,6 +16,33 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	/** The frozen theme behind "full look" shares, with a re-capture button. */
+	private renderThemeSnapshot(containerEl: HTMLElement): void {
+		const snap = this.plugin.settings.themeSnapshot;
+		const setting = new Setting(containerEl).setClass('cmds-share-theme-snapshot');
+		if (snap) {
+			const captured = new Date(snap.capturedAt).toLocaleDateString();
+			setting.setName(`Shared theme: "${snap.name}"`);
+			setting.setDesc(`Captured ${captured} · ${Math.round(snap.bytes / 1024)} KB. Shares use this frozen copy, so you can change your Obsidian theme freely afterwards. To share with a different theme, switch to it in Obsidian and capture again — pages shared earlier keep their look until you re-share them.`);
+		} else {
+			setting.setName('Shared theme: not captured yet');
+			setting.setDesc('Your current Obsidian theme is captured automatically on the next share, or capture it now.');
+		}
+		setting.addButton(button => button
+			.setButtonText(snap ? 'Capture current theme' : 'Capture now')
+			.setCta()
+			.onClick(async () => {
+				button.setDisabled(true);
+				try {
+					const meta = await this.plugin.themeStore.capture();
+					new Notice(`Captured "${meta.name}" for shared pages`);
+				} catch (e) {
+					new Notice(`Theme capture failed: ${e instanceof Error ? e.message : String(e)}`);
+				}
+				this.display();
+			}));
+	}
+
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
@@ -105,16 +132,35 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Share page theme')
-			.setDesc('Color palette for shared pages. "Follow my Obsidian theme" captures your current theme\'s colors at share time.')
+			.setDesc('How shared pages look. "Colors only" keeps CMDS typography in your theme\'s colors; "Full look" ships your Obsidian theme itself — fonts, headings, callouts, Style Settings options — so the page reads like your vault.')
 			.addDropdown(dropdown => dropdown
 				.addOption('cmds', 'CMDS (default)')
 				.addOption('mono', 'Mono')
 				.addOption('sepia', 'Sepia')
 				.addOption('ocean', 'Ocean')
-				.addOption('obsidian', 'Follow my Obsidian theme')
+				.addOption('obsidian', 'My Obsidian theme — colors only')
+				.addOption('obsidian-native', 'My Obsidian theme — full look')
 				.setValue(this.plugin.settings.shareTheme || 'cmds')
 				.onChange(async (value) => {
 					this.plugin.settings.shareTheme = value as CMDSShareSettings['shareTheme'];
+					await this.plugin.saveSettings();
+					this.display();
+				}));
+
+		if (this.plugin.settings.shareTheme === 'obsidian-native') {
+			this.renderThemeSnapshot(containerEl);
+		}
+
+		new Setting(containerEl)
+			.setName('Light/dark mode')
+			.setDesc('Which mode shared pages open in. "Viewer\'s choice" follows the reader\'s system setting and shows a toggle; a fixed mode hides it.')
+			.addDropdown(dropdown => dropdown
+				.addOption('auto', 'Viewer\'s choice')
+				.addOption('light', 'Always light')
+				.addOption('dark', 'Always dark')
+				.setValue(this.plugin.settings.shareColorMode || 'auto')
+				.onChange(async (value) => {
+					this.plugin.settings.shareColorMode = value as CMDSShareSettings['shareColorMode'];
 					await this.plugin.saveSettings();
 				}));
 
@@ -167,16 +213,6 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 			});
-
-		new Setting(containerEl)
-			.setName('Include theme CSS')
-			.setDesc('Upload current Obsidian theme CSS with shared notes')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.includeTheme)
-				.onChange(async (value) => {
-					this.plugin.settings.includeTheme = value;
-					await this.plugin.saveSettings();
-				}));
 
 		new Setting(containerEl)
 			.setName('Remove backlinks')

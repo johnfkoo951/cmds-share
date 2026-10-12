@@ -16,6 +16,8 @@ import { CMSView } from './cms';
 import { ShareOptionsModal, ConfirmDeleteModal, SharedNotesModal } from './modals';
 import { generateShortId, sha256 } from './crypto';
 import { detectShareKind, displayBasename, registerBaseSnapshotView } from './renderers';
+import { refreshLinkFieldActions, registerLinkFieldActions } from './property-actions';
+import { ThemeSnapshotStore } from './theme-snapshot';
 
 interface SavedData {
 	settings?: Partial<CMDSShareSettings>;
@@ -26,11 +28,13 @@ interface SavedData {
 export default class CMDSSharePlugin extends Plugin {
 	settings: CMDSShareSettings;
 	api: ShareApiService;
+	themeStore: ThemeSnapshotStore;
 	private sharedNotes: Map<string, SharedNote> = new Map();
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
-		this.api = new ShareApiService(this.settings);
+		this.themeStore = new ThemeSnapshotStore(this.app, this);
+		this.api = new ShareApiService(this.settings, this.themeStore);
 
 		await this.loadSharedNotes();
 
@@ -99,6 +103,13 @@ export default class CMDSSharePlugin extends Plugin {
 		});
 
 		this.addSettingTab(new CMDSShareSettingTab(this.app, this));
+
+		// the share checkbox in frontmatter is a control, not just a record:
+		// unchecking it takes the page down, re-checking restores a revoked one
+		this.registerEvent(
+			this.app.metadataCache.on('changed', (file) => { void this.onShareFieldChanged(file); })
+		);
+		registerLinkFieldActions(this);
 
 		this.addRibbonIcon('share-2', 'CMDS Share', () => {
 			const file = this.app.workspace.getActiveFile();
@@ -448,6 +459,84 @@ export default class CMDSSharePlugin extends Plugin {
 
 		const duration = durations[expiration];
 		return duration ? now + duration : undefined;
+	}
+
+	/** Paths with a share-field reaction in flight — metadata fires on every keystroke. */
+	private shareFieldBusy = new Set<string>();
+
+	private async onShareFieldChanged(file: TFile): Promise<void> {
+		const note = this.sharedNotes.get(file.path);
+		if (!note || this.shareFieldBusy.has(file.path)) return;
+		const value = this.app.metadataCache.getFileCache(file)?.frontmatter?.[this.settings.shareField];
+		// only an explicit true/false is a decision — a missing field is not
+		if (value !== true && value !== false) return;
+		if (value === !note.revoked) return; // already in that state
+		await this.setShareState(file, value);
+	}
+
+	getSharedNote(filePath: string): SharedNote | undefined {
+		return this.sharedNotes.get(filePath);
+	}
+
+	/**
+	 * Take a share down (false) or bring a revoked one back (true). Servers
+	 * that can revoke do so reversibly; file-hosting backends can only delete,
+	 * which needs explicit confirmation. The frontmatter checkbox always ends
+	 * up matching the real state.
+	 */
+	async setShareState(file: TFile, shared: boolean): Promise<void> {
+		const note = this.sharedNotes.get(file.path);
+		if (!note || this.shareFieldBusy.has(file.path)) return;
+		// revoke calls go to the active provider, so only use it for notes shared there
+		const canRevoke = note.provider === this.settings.activeProvider && !!this.api.getActiveProvider()?.revoke;
+
+		this.shareFieldBusy.add(file.path);
+		try {
+			if (!shared && !note.revoked) {
+				if (canRevoke) {
+					const ok = await this.revokeSharedNote(note, true);
+					new Notice(ok ? `Unshared: ${note.title} (re-check "${this.settings.shareField}" to restore)` : `Failed to unshare ${note.title}`);
+					await this.setShareField(file, !ok);
+					return;
+				}
+				const modal = new ConfirmDeleteModal(this.app, note);
+				modal.open();
+				if (await modal.getResult()) {
+					const ok = await this.deleteSharedNote(note);
+					new Notice(ok ? `Deleted: ${note.title}` : `Failed to delete ${note.title}`);
+					if (!ok) await this.setShareField(file, true);
+				} else {
+					await this.setShareField(file, true);
+				}
+			} else if (shared && note.revoked) {
+				if (!canRevoke) {
+					new Notice('Restore is only available on the provider this note was shared to');
+					await this.setShareField(file, false);
+					return;
+				}
+				const ok = await this.revokeSharedNote(note, false);
+				new Notice(ok ? `Restored: ${note.title}` : `Failed to restore ${note.title}`);
+				await this.setShareField(file, ok);
+			}
+		} finally {
+			this.shareFieldBusy.delete(file.path);
+			this.refreshCMS();
+			refreshLinkFieldActions(this);
+		}
+	}
+
+	private async setShareField(file: TFile, value: boolean): Promise<void> {
+		const current = this.app.metadataCache.getFileCache(file)?.frontmatter?.[this.settings.shareField];
+		if (current === value) return;
+		await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
+			frontmatter[this.settings.shareField] = value;
+		});
+	}
+
+	private refreshCMS(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(CMS_VIEW_TYPE)) {
+			if (leaf.view instanceof CMSView) void leaf.view.render();
+		}
 	}
 
 	private async updateFrontmatter(file: TFile, note: SharedNote): Promise<void> {

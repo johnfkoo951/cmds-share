@@ -4,7 +4,7 @@ const LOGO_URL = 'https://cmdspace.work/assets/logos/cmds-logo-round.png';
 const OG_IMAGE_URL = 'https://share.cmdspace.work/assets/og/og-share.png';
 
 /** Built-in share-page palettes. 'obsidian' is resolved at share time in api.ts. */
-export const PALETTES: Record<Exclude<ShareTheme, 'obsidian'>, ThemePalette> = {
+export const PALETTES: Record<Exclude<ShareTheme, 'obsidian' | 'obsidian-native'>, ThemePalette> = {
 	cmds: {
 		light: {
 			text: '#1a1a1a', muted: '#666', bg: '#fff',
@@ -63,6 +63,161 @@ export const PALETTES: Record<Exclude<ShareTheme, 'obsidian'>, ThemePalette> = {
 	},
 };
 
+/**
+ * CMDS typography for the note body. ID-scoped, so it beats any theme CSS —
+ * which is why it is left out entirely when the page carries the user's own
+ * Obsidian theme (nativeTheme).
+ */
+const NOTE_TYPOGRAPHY_CSS = `
+#note-content { font-size: 1rem; overflow-wrap: break-word; }
+#note-content h1, #note-content h2, #note-content h3,
+#note-content h4, #note-content h5, #note-content h6 {
+	font-weight: 700; letter-spacing: -0.02em; line-height: 1.3;
+	margin: 2rem 0 0.75rem; scroll-margin-top: 1.5rem;
+}
+#note-content h1 { font-size: 1.85rem; margin-top: 2.4rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+#note-content h2 { font-size: 1.4rem; margin-top: 2.2rem; }
+#note-content h3 { font-size: 1.18rem; }
+#note-content h4 { font-size: 1.06rem; color: var(--text); margin-top: 1.8rem; }
+#note-content h5 { font-size: 0.98rem; color: var(--text); }
+#note-content h6 { font-size: 0.9rem; color: var(--muted); }
+#note-content p { margin: 0.85rem 0; }
+#note-content ul, #note-content ol { margin: 0.85rem 0 0.85rem 1.4rem; }
+#note-content li { margin: 0.35rem 0; }
+#note-content li > ul, #note-content li > ol { margin: 0.25rem 0 0.25rem 1.2rem; }
+#note-content a {
+	color: var(--accent); text-decoration: none;
+	border-bottom: 1px solid transparent; transition: border-color .15s;
+}
+#note-content a:hover { border-bottom-color: var(--accent); }
+#note-content code {
+	background: var(--code-bg); padding: 0.18em 0.45em; border-radius: 6px;
+	font-size: 0.86em; font-family: 'SF Mono', 'Menlo', monospace;
+}
+#note-content pre {
+	background: var(--pre-bg); color: var(--pre-fg);
+	border: 1px solid var(--border);
+	padding: 1rem; border-radius: 12px;
+	overflow-x: auto; font-size: 0.85rem; line-height: 1.6;
+	font-family: 'SF Mono', 'Menlo', monospace; margin: 1rem 0;
+	position: relative;
+}
+#note-content pre code { background: transparent; padding: 0; font-size: 1em; }
+#note-content pre[data-lang]::before {
+	content: attr(data-lang);
+	position: absolute; top: 7px; left: 12px;
+	font-size: 0.66rem; font-weight: 600; letter-spacing: 0.05em;
+	color: var(--muted); opacity: 0.75; text-transform: lowercase;
+	font-family: -apple-system, sans-serif;
+}
+#note-content pre[data-lang] { padding-top: 1.9rem; }
+#note-content blockquote {
+	border-left: 3px solid var(--accent); padding: 0.5rem 1rem;
+	margin: 1rem 0; color: var(--muted); background: var(--code-bg);
+	border-radius: 0 8px 8px 0;
+}
+#note-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 1rem 0; }
+#note-content table {
+	border-collapse: collapse; margin: 1rem 0;
+	font-size: 0.9rem;
+	/* wide tables scroll inside themselves instead of panning the page */
+	display: block; width: max-content; min-width: 60%; max-width: 100%;
+	overflow-x: auto;
+}
+#note-content th, #note-content td {
+	border: none; border-bottom: 1px solid var(--border);
+	padding: 0.65rem 0.9rem; text-align: left; vertical-align: top;
+}
+#note-content th { font-weight: 700; font-size: 0.85rem; color: var(--muted); border-bottom-width: 2px; }
+#note-content tr:last-child td { border-bottom: none; }
+#note-content hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+#note-content mark { background: rgba(233,133,162,0.25); padding: 0 0.2rem; border-radius: 3px; }
+#note-content .callout {
+	--co: var(--accent);
+	background: var(--code-bg); border-radius: 8px; padding: 0.9rem 1rem;
+	margin: 1rem 0; border-left: 3px solid var(--co);
+}
+#note-content .callout-title {
+	display: flex; align-items: center; gap: 0.5em;
+	font-weight: 700; color: var(--co); margin: 0;
+}
+#note-content .callout-icon { display: flex; align-items: center; flex-shrink: 0; }
+#note-content .callout-icon svg, #note-content .callout-title > svg {
+	width: 1.1em; height: 1.1em;
+}
+#note-content .callout-title-inner { line-height: 1.45; }
+#note-content .callout-fold { display: none; }
+#note-content .callout.is-collapsible > .callout-title { cursor: pointer; }
+#note-content .callout.is-collapsible .callout-fold {
+	display: flex; margin-left: auto; color: var(--muted); transition: transform .15s;
+}
+#note-content .callout.is-collapsed .callout-fold { transform: rotate(-90deg); }
+#note-content .callout-fold svg { width: 1em; height: 1em; }
+#note-content .callout-content > :first-child { margin-top: 0.45rem; }
+#note-content .callout-content > :last-child { margin-bottom: 0.1rem; }
+#note-content .callout[data-callout="abstract"], #note-content .callout[data-callout="summary"], #note-content .callout[data-callout="tldr"] { --co: #23a8b8; }
+#note-content .callout[data-callout="info"], #note-content .callout[data-callout="note"], #note-content .callout[data-callout="todo"] { --co: #4a8edb; }
+#note-content .callout[data-callout="tip"], #note-content .callout[data-callout="hint"], #note-content .callout[data-callout="important"] { --co: #23b89b; }
+#note-content .callout[data-callout="success"], #note-content .callout[data-callout="check"], #note-content .callout[data-callout="done"] { --co: #3aa657; }
+#note-content .callout[data-callout="question"], #note-content .callout[data-callout="help"], #note-content .callout[data-callout="faq"] { --co: #d9a13b; }
+#note-content .callout[data-callout="warning"], #note-content .callout[data-callout="caution"], #note-content .callout[data-callout="attention"] { --co: #e0813a; }
+#note-content .callout[data-callout="danger"], #note-content .callout[data-callout="error"], #note-content .callout[data-callout="failure"], #note-content .callout[data-callout="fail"], #note-content .callout[data-callout="missing"], #note-content .callout[data-callout="bug"] { --co: #e05252; }
+#note-content .callout[data-callout="example"] { --co: #8a6fd6; }
+#note-content .callout[data-callout="quote"], #note-content .callout[data-callout="cite"] { --co: var(--muted); }
+#note-content .internal-link {
+	color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: help;
+}
+`;
+
+/**
+ * With app.css + theme loaded, undo what makes sense in the app window but not
+ * on a scrolling web page, and keep the page's own buttons out of Obsidian's
+ * button styling.
+ */
+const NATIVE_THEME_FIXUPS_CSS = `
+html { height: auto; overflow-y: auto; }
+/* app.css makes body a fixed, contain:strict app frame — a page needs normal flow */
+body.cmds-native {
+	height: auto; min-height: 100%; overflow: visible; overflow-x: hidden;
+	contain: none; position: static;
+	user-select: text; -webkit-user-select: text;
+}
+body.cmds-native .app-container {
+	display: block; height: auto; width: auto; position: static;
+	overflow: visible; contain: none; background: none;
+}
+body.cmds-native #note-content.markdown-preview-view {
+	width: auto; height: auto; padding: 0; overflow: visible;
+	font-size: var(--font-text-size, 16px);
+}
+body.cmds-native button.tool-btn, body.cmds-native button.pin-btn,
+body.cmds-native button.code-copy, body.cmds-native .cmds-canvas-ui button {
+	box-shadow: none; padding: 0; font: inherit;
+}
+body.cmds-native button.tool-btn { background: var(--card-bg); }
+body.cmds-native button.pin-btn, body.cmds-native .cmds-canvas-ui button { background: transparent; }
+body.cmds-native button.pin-btn:hover, body.cmds-native .cmds-canvas-ui button:hover { background: var(--code-bg); }
+body.cmds-native button.code-copy { background: color-mix(in srgb, var(--card-bg) 92%, transparent); }
+`;
+
+/** Self-contained task checkboxes for the CMDS palettes (no app.css on the page). */
+const CHECKBOX_CSS = `
+#note-content li.task-list-item { list-style: none !important; }
+#note-content input[type="checkbox"] {
+	all: revert !important;
+	appearance: auto !important;
+	display: inline-block !important;
+	position: static !important;
+	width: 1em !important; height: 1em !important;
+	margin: 0 0.5em 0 0 !important;
+	vertical-align: -0.1em !important;
+	opacity: 1 !important;
+	accent-color: var(--accent) !important;
+}
+#note-content input[type="checkbox"]::before,
+#note-content input[type="checkbox"]::after { content: none !important; display: none !important; }
+`;
+
 function varsCss(v: ThemeVars): string {
 	return [
 		`--text: ${v.text}`, `--muted: ${v.muted}`, `--bg: ${v.bg}`,
@@ -80,6 +235,8 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 		layout = 'note',
 		palette,
 		themeName,
+		colorMode = 'auto',
+		nativeTheme,
 		footerLink,
 		content,
 		url,
@@ -147,9 +304,18 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 		? `<header class="cmds-doc-header">${kindPill}<h1 class="cmds-doc-title">${safeTitle}</h1></header>`
 		: '';
 
+	// the full theme styles reading view, which is .markdown-preview-view
+	const articleCls = nativeTheme ? 'markdown-preview-view markdown-rendered' : 'markdown-rendered';
 	const bodyContent = titleHeader + (encrypted
-		? '<article id="note-content" class="markdown-rendered"><p class="cmds-loading">Decrypting…</p></article>'
-		: `<article id="note-content" class="markdown-rendered">${content}</article>`);
+		? `<article id="note-content" class="${articleCls}"><p class="cmds-loading">Decrypting…</p></article>`
+		: `<article id="note-content" class="${articleCls}">${content}</article>`);
+
+	const bodyCls = ['cmds-kind-' + kind, 'cmds-layout-' + layout]
+		.concat(nativeTheme ? ['cmds-native', nativeTheme.bodyClasses] : [])
+		.filter(Boolean).join(' ');
+	const bodyStyleAttr = nativeTheme?.bodyStyle ? ` style="${escapeAttr(nativeTheme.bodyStyle)}"` : '';
+	// a fixed mode ignores the viewer's preference and hides the toggle
+	const forcedMode = colorMode === 'light' || colorMode === 'dark' ? colorMode : '';
 
 	return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -182,7 +348,7 @@ ${urlMeta}
 <meta name="twitter:image" content="${OG_IMAGE_URL}">
 
 <script>
-(function(){try{var t=localStorage.getItem('cmds-theme');if(t){document.documentElement.dataset.theme=t;}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.dataset.theme='dark';}else{document.documentElement.dataset.theme='light';}}catch(e){}})();
+(function(){try{var f='${forcedMode}';if(f){document.documentElement.dataset.theme=f;return;}var t=localStorage.getItem('cmds-theme');if(t){document.documentElement.dataset.theme=t;}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.dataset.theme='dark';}else{document.documentElement.dataset.theme='light';}}catch(e){}})();
 </script>
 
 <style>
@@ -308,39 +474,8 @@ main {
 	max-width: var(--max); margin: 0 auto; padding: 4rem 1.5rem 3rem;
 }
 
-#note-content { font-size: 1rem; overflow-wrap: break-word; }
-#note-content h1, #note-content h2, #note-content h3,
-#note-content h4, #note-content h5, #note-content h6 {
-	font-weight: 700; letter-spacing: -0.02em; line-height: 1.3;
-	margin: 2rem 0 0.75rem; scroll-margin-top: 1.5rem;
-}
-#note-content h1 { font-size: 1.85rem; margin-top: 2.4rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
-#note-content h2 { font-size: 1.4rem; margin-top: 2.2rem; }
-#note-content h3 { font-size: 1.18rem; }
-#note-content h4 { font-size: 1.06rem; color: var(--text); margin-top: 1.8rem; }
-#note-content h5 { font-size: 0.98rem; color: var(--text); }
-#note-content h6 { font-size: 0.9rem; color: var(--muted); }
-#note-content p { margin: 0.85rem 0; }
-#note-content ul, #note-content ol { margin: 0.85rem 0 0.85rem 1.4rem; }
-#note-content li { margin: 0.35rem 0; }
-#note-content li > ul, #note-content li > ol { margin: 0.25rem 0 0.25rem 1.2rem; }
-#note-content a {
-	color: var(--accent); text-decoration: none;
-	border-bottom: 1px solid transparent; transition: border-color .15s;
-}
-#note-content a:hover { border-bottom-color: var(--accent); }
-#note-content code {
-	background: var(--code-bg); padding: 0.18em 0.45em; border-radius: 6px;
-	font-size: 0.86em; font-family: 'SF Mono', 'Menlo', monospace;
-}
-#note-content pre {
-	background: var(--pre-bg); color: var(--pre-fg);
-	border: 1px solid var(--border);
-	padding: 1rem; border-radius: 12px;
-	overflow-x: auto; font-size: 0.85rem; line-height: 1.6;
-	font-family: 'SF Mono', 'Menlo', monospace; margin: 1rem 0;
-	position: relative;
-}
+${nativeTheme ? '' : NOTE_TYPOGRAPHY_CSS}
+#note-content pre { position: relative; }
 .code-copy {
 	position: absolute; top: 8px; right: 8px;
 	width: 28px; height: 28px; border-radius: 6px;
@@ -363,67 +498,8 @@ main {
 .h-anchor:hover { color: var(--accent); }
 #note-content h1:hover .h-anchor, #note-content h2:hover .h-anchor,
 #note-content h3:hover .h-anchor, #note-content h4:hover .h-anchor { opacity: 0.75; }
-#note-content pre code { background: transparent; padding: 0; font-size: 1em; }
-#note-content pre[data-lang]::before {
-	content: attr(data-lang);
-	position: absolute; top: 7px; left: 12px;
-	font-size: 0.66rem; font-weight: 600; letter-spacing: 0.05em;
-	color: var(--muted); opacity: 0.75; text-transform: lowercase;
-	font-family: -apple-system, sans-serif;
-}
-#note-content pre[data-lang] { padding-top: 1.9rem; }
 .mermaid-container { margin: 1rem 0; overflow-x: auto; text-align: center; }
 .mermaid-container svg { max-width: 100%; height: auto; }
-#note-content blockquote {
-	border-left: 3px solid var(--accent); padding: 0.5rem 1rem;
-	margin: 1rem 0; color: var(--muted); background: var(--code-bg);
-	border-radius: 0 8px 8px 0;
-}
-#note-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 1rem 0; }
-#note-content table {
-	border-collapse: collapse; margin: 1rem 0;
-	font-size: 0.9rem;
-	/* wide tables scroll inside themselves instead of panning the page */
-	display: block; width: max-content; min-width: 60%; max-width: 100%;
-	overflow-x: auto;
-}
-#note-content th, #note-content td {
-	border: none; border-bottom: 1px solid var(--border);
-	padding: 0.65rem 0.9rem; text-align: left; vertical-align: top;
-}
-#note-content th { font-weight: 700; font-size: 0.85rem; color: var(--muted); border-bottom-width: 2px; }
-#note-content tr:last-child td { border-bottom: none; }
-#note-content hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
-#note-content mark { background: rgba(233,133,162,0.25); padding: 0 0.2rem; border-radius: 3px; }
-#note-content .callout {
-	--co: var(--accent);
-	background: var(--code-bg); border-radius: 8px; padding: 0.9rem 1rem;
-	margin: 1rem 0; border-left: 3px solid var(--co);
-}
-#note-content .callout-title {
-	display: flex; align-items: center; gap: 0.5em;
-	font-weight: 700; color: var(--co); margin: 0;
-}
-#note-content .callout-icon { display: flex; align-items: center; flex-shrink: 0; }
-#note-content .callout-icon svg, #note-content .callout-title > svg {
-	width: 1.1em; height: 1.1em;
-}
-#note-content .callout-title-inner { line-height: 1.45; }
-#note-content .callout-fold { display: none; }
-#note-content .callout-content > :first-child { margin-top: 0.45rem; }
-#note-content .callout-content > :last-child { margin-bottom: 0.1rem; }
-#note-content .callout[data-callout="abstract"], #note-content .callout[data-callout="summary"], #note-content .callout[data-callout="tldr"] { --co: #23a8b8; }
-#note-content .callout[data-callout="info"], #note-content .callout[data-callout="note"], #note-content .callout[data-callout="todo"] { --co: #4a8edb; }
-#note-content .callout[data-callout="tip"], #note-content .callout[data-callout="hint"], #note-content .callout[data-callout="important"] { --co: #23b89b; }
-#note-content .callout[data-callout="success"], #note-content .callout[data-callout="check"], #note-content .callout[data-callout="done"] { --co: #3aa657; }
-#note-content .callout[data-callout="question"], #note-content .callout[data-callout="help"], #note-content .callout[data-callout="faq"] { --co: #d9a13b; }
-#note-content .callout[data-callout="warning"], #note-content .callout[data-callout="caution"], #note-content .callout[data-callout="attention"] { --co: #e0813a; }
-#note-content .callout[data-callout="danger"], #note-content .callout[data-callout="error"], #note-content .callout[data-callout="failure"], #note-content .callout[data-callout="fail"], #note-content .callout[data-callout="missing"], #note-content .callout[data-callout="bug"] { --co: #e05252; }
-#note-content .callout[data-callout="example"] { --co: #8a6fd6; }
-#note-content .callout[data-callout="quote"], #note-content .callout[data-callout="cite"] { --co: var(--muted); }
-#note-content .internal-link {
-	color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: help;
-}
 
 /* ── title heading ── */
 .cmds-doc-header { margin: 0 0 2rem; }
@@ -612,29 +688,17 @@ body.cmds-layout-wide main { padding-top: 3.5rem; }
 }
 </style>
 ${cssLink}
-<style>
-/* Exported themes can suppress native controls and depend on app-only variables.
-   Keep snapshot checkboxes self-contained, even when theme CSS is included. */
-#note-content li.task-list-item { list-style: none !important; }
-#note-content input[type="checkbox"] {
-	all: revert !important;
-	appearance: auto !important;
-	display: inline-block !important;
-	position: static !important;
-	width: 1em !important; height: 1em !important;
-	margin: 0 0.5em 0 0 !important;
-	vertical-align: -0.1em !important;
-	opacity: 1 !important;
-	accent-color: var(--accent) !important;
-}
-#note-content input[type="checkbox"]::before,
-#note-content input[type="checkbox"]::after { content: none !important; display: none !important; }
-</style>
+${nativeTheme ? `<style>${NATIVE_THEME_FIXUPS_CSS}</style>` : `<style>${CHECKBOX_CSS}</style>`}
 </head>
-<body class="cmds-kind-${kind} cmds-layout-${layout}">
+<body class="${escapeAttr(bodyCls)}"${bodyStyleAttr}>
+<script>
+// Obsidian themes switch on body.theme-light / body.theme-dark
+(function(){var b=document.body,r=document.documentElement;function sync(){var d=r.dataset.theme==='dark';b.classList.toggle('theme-dark',d);b.classList.toggle('theme-light',!d);}sync();new MutationObserver(sync).observe(r,{attributes:true,attributeFilter:['data-theme']});})();
+</script>
 
+${nativeTheme ? '<div class="app-container">' : ''}
 <div class="side-tools">
-	<button class="tool-btn" id="themeToggle" aria-label="Toggle theme">
+	<button class="tool-btn" id="themeToggle" aria-label="Toggle theme"${forcedMode ? ' hidden' : ''}>
 		<svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
 	</button>
 	<button class="tool-btn" id="tocToggle" aria-label="Table of contents" hidden>
@@ -668,6 +732,7 @@ ${cssLink}
 	<span class="cmds-theme-note">Theme: ${escapeHtml(themeName)}</span>
 	${footerLink ? `<a class="cmds-author-link" href="${escapeAttr(footerLink.url)}" target="_blank" rel="noopener">${escapeHtml(footerLink.label)}</a>` : ''}
 </footer>
+${nativeTheme ? '</div>' : ''}
 
 ${encryptedDataDiv}
 ${graphDataDiv}
@@ -1109,6 +1174,22 @@ const PANELS_SCRIPT = `
 		});
 	}
 
+	// foldable callouts ("> [!tip]-") render collapsed with inline display:none
+	function foldableCallouts() {
+		document.querySelectorAll('#note-content .callout.is-collapsible > .callout-title').forEach(function(title) {
+			if (title.dataset.cmdsFold) return;
+			title.dataset.cmdsFold = '1';
+			title.addEventListener('click', function() {
+				var callout = title.parentElement;
+				var content = callout.querySelector(':scope > .callout-content');
+				var collapsed = callout.classList.toggle('is-collapsed');
+				if (content) content.style.display = collapsed ? 'none' : '';
+				var fold = title.querySelector('.callout-fold');
+				if (fold) fold.classList.toggle('is-collapsed', collapsed);
+			});
+		});
+	}
+
 	// hover link icon on headings — click copies the deep link
 	function headingAnchors() {
 		headings().forEach(function(h) {
@@ -1439,6 +1520,7 @@ const PANELS_SCRIPT = `
 		assignHeadingIds();
 		enhanceCodeBlocks();
 		headingAnchors();
+		foldableCallouts();
 		wireMdTools();
 		hasToc = buildToc();
 		if (hasToc) {
