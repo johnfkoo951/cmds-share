@@ -8,6 +8,7 @@ import {
 	ConvexProviderConfig,
 	UploadResult,
 	DeleteResult,
+	ShareKind,
 } from './types';
 
 /** Governance metadata sent alongside a note upload (providers may ignore it). */
@@ -17,6 +18,7 @@ export interface ShareMeta {
 	encrypted: boolean;
 	expiresAt?: number;
 	vaultId: string;
+	kind?: ShareKind;
 }
 
 /** Server-side share record, returned by providers that support listing. */
@@ -24,6 +26,8 @@ export interface RemoteNoteMeta {
 	shortId: string;
 	title: string;
 	encrypted: boolean;
+	/** Servers that predate kinds omit it. */
+	kind?: ShareKind;
 	viewCount: number;
 	expiresAt?: number;
 	revoked: boolean;
@@ -86,6 +90,7 @@ export class CmdspaceProvider implements ServerProvider {
 				headers['x-cmds-encrypted'] = meta.encrypted ? '1' : '0';
 				headers['x-cmds-vault-id'] = meta.vaultId;
 				if (meta.expiresAt) headers['x-cmds-expires-at'] = String(meta.expiresAt);
+				if (meta.kind) headers['x-cmds-kind'] = meta.kind;
 			}
 
 			const response = await requestUrl({

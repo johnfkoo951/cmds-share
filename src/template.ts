@@ -615,9 +615,26 @@ body.cmds-layout-wide main { padding-top: 3.5rem; }
 }
 
 /* ── Bases ── */
+/* Fit (default): Obsidian-like single-line rows, columns sized to content,
+   long values truncated. Wrap: values wrap at a readable width. Viewers can
+   drag column edges (fixed widths) and click a row to expand it. */
 .cmds-base-section + .cmds-base-section { margin-top: 2.5rem; }
 #note-content .cmds-base-view-name { font-size: 1.2rem; border: none; padding: 0; margin: 0 0 0.6rem; }
+.cmds-base-bar {
+	display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+	flex-wrap: wrap; margin-bottom: 0.8rem;
+}
+.cmds-base-bar .cmds-base-count { margin: 0; }
 .cmds-base-count { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.8rem; font-variant-numeric: tabular-nums; }
+.cmds-base-tools { display: inline-flex; gap: 4px; align-items: center; }
+.cmds-base-tools button {
+	font: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer;
+	padding: 0.2rem 0.6rem; border-radius: 999px; box-shadow: none; height: auto;
+	border: 1px solid var(--border); background: transparent; color: var(--muted);
+}
+.cmds-base-tools button:hover { color: var(--text); border-color: var(--accent); }
+.cmds-base-tools button.on { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.cmds-base-tools button[hidden] { display: none; }
 .cmds-base-group + .cmds-base-group { margin-top: 1.6rem; }
 .cmds-base-group-head {
 	display: flex; align-items: center; gap: 0.5rem;
@@ -629,23 +646,58 @@ body.cmds-layout-wide main { padding-top: 3.5rem; }
 	background: var(--code-bg); border-radius: 999px; padding: 0.05rem 0.5rem;
 }
 .cmds-base-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
-#note-content table.cmds-base-table { display: table; table-layout: fixed; margin: 0; border: none; width: 100%; max-width: none; border-collapse: collapse; font-size: 0.9rem; }
-#note-content .cmds-base-table th {
-	position: sticky; top: 0; text-align: left; white-space: nowrap;
-	font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-	color: var(--muted); background: var(--card-bg);
-	border: none; border-bottom: 1px solid var(--border); padding: 0.6rem 0.9rem;
+#note-content table.cmds-base-table {
+	display: table; table-layout: auto; width: max-content; min-width: 100%; max-width: none;
+	margin: 0; border: none; border-collapse: collapse; font-size: 0.88rem;
 }
-#note-content .cmds-base-table td { border: none; border-bottom: 1px solid var(--border); padding: 0.55rem 0.9rem; vertical-align: top; }
+#note-content table.cmds-base-table.is-sized { table-layout: fixed; min-width: 0; }
+#note-content .cmds-base-table th {
+	position: sticky; top: 0; z-index: 1; text-align: left; white-space: nowrap;
+	font-size: 0.78rem; font-weight: 600; color: var(--muted); background: var(--card-bg);
+	border: none; border-bottom: 1px solid var(--border); padding: 0.5rem 0.9rem;
+	overflow: hidden; text-overflow: ellipsis;
+}
+#note-content .cmds-base-table td {
+	border: none; border-bottom: 1px solid var(--border); padding: 0.45rem 0.9rem; vertical-align: top;
+	white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 26rem;
+}
+#note-content .cmds-base-table.is-sized td { max-width: none; }
+#note-content .cmds-base-table td > * { margin: 0; }
+#note-content .cmds-base-table td p { display: inline; }
+#note-content .cmds-base-view.is-wrap .cmds-base-table td,
+#note-content .cmds-base-table tr.is-expanded td {
+	white-space: normal; overflow-wrap: anywhere; overflow: visible; max-width: 30rem; line-height: 1.55;
+}
+#note-content .cmds-base-view.is-wrap .cmds-base-table.is-sized td,
+#note-content .cmds-base-table.is-sized tr.is-expanded td { max-width: none; }
+#note-content .cmds-base-table tbody tr { cursor: pointer; }
+#note-content .cmds-base-table tr.cmds-base-group-row { cursor: default; }
+#note-content .cmds-base-table td.cmds-base-group-cell {
+	white-space: nowrap; max-width: none; overflow: visible; background: none !important;
+	padding: 1.1rem 0.9rem 0.45rem; border-bottom: 1px solid var(--border);
+}
+#note-content .cmds-base-table tbody:first-of-type td.cmds-base-group-cell { padding-top: 0.7rem; }
+#note-content .cmds-base-table td.cmds-base-group-cell .cmds-base-group-head { margin: 0; position: sticky; left: 0.9rem; display: inline-flex; }
 #note-content .cmds-base-table tr:last-child td { border-bottom: none; }
 #note-content .cmds-base-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+#note-content .cmds-base-table tr.is-expanded td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.cmds-col-grip {
+	position: absolute; top: 0; right: 0; width: 9px; height: 100%;
+	cursor: col-resize; z-index: 2; touch-action: none;
+}
+.cmds-col-grip::after {
+	content: ''; position: absolute; top: 25%; bottom: 25%; right: 0; width: 1px;
+	background: var(--border); transition: background .15s;
+}
+.cmds-col-grip:hover::after, .cmds-col-grip.dragging::after { background: var(--accent); top: 0; bottom: 0; width: 2px; }
+.cmds-base-table th .cmds-th-inner { display: block; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; }
 .cmds-base-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.9rem; }
 .cmds-base-card { border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem 1rem; background: var(--card-bg); }
 .cmds-base-card-title { font-weight: 700; margin-bottom: 0.5rem; }
 .cmds-base-card-prop { display: flex; gap: 0.6rem; font-size: 0.82rem; line-height: 1.5; }
 .cmds-base-card-key { color: var(--muted); flex: 0 0 38%; overflow: hidden; text-overflow: ellipsis; }
 .cmds-base-card-val { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-#note-content .cmds-base .value-list-container { display: flex; flex-wrap: wrap; gap: 4px; }
+#note-content .cmds-base .value-list-container { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 #note-content .cmds-base .value-list-element {
 	background: var(--code-bg); border-radius: 6px; padding: 0 0.4rem; font-size: 0.85em;
 }
@@ -850,6 +902,7 @@ ${decryptionScript}
 
 ${PANELS_SCRIPT}
 ${kind === 'canvas' ? CANVAS_SCRIPT : ''}
+${kind === 'base' ? BASE_SCRIPT : ''}
 </body>
 </html>`;
 }
@@ -857,6 +910,167 @@ ${kind === 'canvas' ? CANVAS_SCRIPT : ''}
 // Pan / zoom viewer for shared canvases. Drag to pan; Ctrl/⌘ + wheel or
 // trackpad pinch to zoom (plain wheel keeps scrolling the page, except in
 // fullscreen); two-finger pinch on touch screens.
+/**
+ * Base tables: Fit/Wrap toggle, drag-to-resize columns (double-click a grip
+ * to reset), click a row to expand it. Layout choices persist per page.
+ */
+const BASE_SCRIPT = `
+<script>
+(function() {
+	var KEY = 'cmds-base:' + location.pathname;
+	var saved = {};
+	try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) {}
+	function save() { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {} }
+
+	function sizeTable(table, widths) {
+		var cols = table.querySelector('colgroup');
+		if (!cols) { cols = document.createElement('colgroup'); table.insertBefore(cols, table.firstChild); }
+		cols.innerHTML = '';
+		var total = 0;
+		widths.forEach(function(w) {
+			var col = document.createElement('col');
+			col.style.width = w + 'px';
+			cols.appendChild(col);
+			total += w;
+		});
+		table.style.width = total + 'px';
+		table.classList.add('is-sized');
+	}
+	function unsizeTable(table) {
+		var cols = table.querySelector('colgroup');
+		if (cols) cols.remove();
+		table.style.width = '';
+		table.classList.remove('is-sized');
+	}
+	function measure(table) {
+		return Array.prototype.map.call(table.querySelectorAll('thead th'), function(th) {
+			return Math.round(th.getBoundingClientRect().width);
+		});
+	}
+
+	function setupTable(table, key, onChange) {
+		var ths = table.querySelectorAll('thead th');
+		var preset = table.getAttribute('data-sizes');
+		if (saved[key] && saved[key].length === ths.length) sizeTable(table, saved[key]);
+		else if (preset) {
+			// widths saved in the .base file; columns without one keep their fitted width
+			try {
+				var p = JSON.parse(preset), m = measure(table);
+				if (p.length === ths.length) sizeTable(table, p.map(function(w, i) { return w || m[i]; }));
+			} catch (e) {}
+		}
+
+		Array.prototype.forEach.call(ths, function(th, i) {
+			var label = th.textContent;
+			th.textContent = '';
+			var inner = document.createElement('span');
+			inner.className = 'cmds-th-inner';
+			inner.textContent = label;
+			th.title = label;
+			th.appendChild(inner);
+			var grip = document.createElement('span');
+			grip.className = 'cmds-col-grip';
+			grip.setAttribute('aria-hidden', 'true');
+			th.appendChild(grip);
+			grip.addEventListener('click', function(e) { e.stopPropagation(); });
+			grip.addEventListener('dblclick', function(e) {
+				e.stopPropagation();
+				unsizeTable(table);
+				delete saved[key]; save(); onChange();
+			});
+			grip.addEventListener('pointerdown', function(e) {
+				e.preventDefault(); e.stopPropagation();
+				var widths = table.classList.contains('is-sized') ? measureCols(table) : measure(table);
+				sizeTable(table, widths);
+				var startX = e.clientX, start = widths[i];
+				grip.classList.add('dragging');
+				try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+				function move(ev) {
+					widths[i] = Math.max(48, Math.round(start + ev.clientX - startX));
+					sizeTable(table, widths);
+				}
+				function up() {
+					grip.classList.remove('dragging');
+					grip.removeEventListener('pointermove', move);
+					grip.removeEventListener('pointerup', up);
+					grip.removeEventListener('pointercancel', up);
+					saved[key] = widths.slice(); save(); onChange();
+				}
+				grip.addEventListener('pointermove', move);
+				grip.addEventListener('pointerup', up);
+				grip.addEventListener('pointercancel', up);
+			});
+		});
+
+		// full value on hover when the cell is truncated; click a row to expand it
+		Array.prototype.forEach.call(table.querySelectorAll('tbody td:not(.cmds-base-group-cell)'), function(td) {
+			var t = (td.textContent || '').trim();
+			if (t.length > 24) td.title = t;
+		});
+		table.addEventListener('click', function(e) {
+			if (e.target.closest('a')) return;
+			var tr = e.target.closest('tbody tr');
+			if (tr && !tr.classList.contains('cmds-base-group-row')) tr.classList.toggle('is-expanded');
+		});
+	}
+	function measureCols(table) {
+		return Array.prototype.map.call(table.querySelectorAll('colgroup col'), function(c) { return parseInt(c.style.width, 10) || 120; });
+	}
+
+	function setupSection(section, si) {
+		var root = section.querySelector('.cmds-base-view');
+		if (!root) return;
+		var tables = root.querySelectorAll('table.cmds-base-table');
+		var count = root.querySelector(':scope > .cmds-base-count');
+		var bar = document.createElement('div');
+		bar.className = 'cmds-base-bar';
+		root.insertBefore(bar, root.firstChild);
+		if (count) bar.appendChild(count);
+		if (!tables.length) return;
+
+		var tools = document.createElement('div');
+		tools.className = 'cmds-base-tools';
+		function btn(text, title) {
+			var b = document.createElement('button');
+			b.type = 'button'; b.textContent = text; b.title = title;
+			tools.appendChild(b);
+			return b;
+		}
+		var fitBtn = btn('Fit', 'One line per row, columns sized to content');
+		var wrapBtn = btn('Wrap', 'Wrap long values');
+		var resetBtn = btn('Reset widths', 'Undo column resizing');
+		bar.appendChild(tools);
+
+		var wrapKey = 'wrap' + si;
+		function paint() {
+			var wrap = !!saved[wrapKey];
+			root.classList.toggle('is-wrap', wrap);
+			fitBtn.classList.toggle('on', !wrap);
+			wrapBtn.classList.toggle('on', wrap);
+			resetBtn.hidden = !root.querySelector('table.is-sized');
+		}
+		fitBtn.addEventListener('click', function() { delete saved[wrapKey]; save(); paint(); });
+		wrapBtn.addEventListener('click', function() { saved[wrapKey] = 1; save(); paint(); });
+		resetBtn.addEventListener('click', function() {
+			Array.prototype.forEach.call(tables, function(t, ti) { unsizeTable(t); delete saved['w' + si + '-' + ti]; });
+			save(); paint();
+		});
+		Array.prototype.forEach.call(tables, function(t, ti) { setupTable(t, 'w' + si + '-' + ti, paint); });
+		paint();
+	}
+
+	function init() {
+		Array.prototype.forEach.call(document.querySelectorAll('#note-content .cmds-base-section'), setupSection);
+	}
+	if (document.getElementById('encrypted-data') && !window.__cmdsReady) {
+		document.addEventListener('cmds-content-ready', init, { once: true });
+	} else {
+		init();
+	}
+})();
+</script>
+`;
+
 const CANVAS_SCRIPT = `
 <script>
 (function() {

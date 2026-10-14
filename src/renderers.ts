@@ -440,8 +440,20 @@ function humanizeWikilinks(root: HTMLElement): void {
 	}
 }
 
+/** Column widths the user set in Obsidian (view `columnSize`, keyed by property id). */
+function columnSizes(config: { get(k: string): unknown }, columns: string[]): number[] | null {
+	const raw = config.get('columnSize');
+	if (!raw || typeof raw !== 'object') return null;
+	const sizes = raw as Record<string, unknown>;
+	const widths = columns.map(col => {
+		const w = Number(sizes[col] ?? sizes[`note.${col}`]);
+		return Number.isFinite(w) && w > 0 ? Math.round(w) : 0;
+	});
+	return widths.some(w => w > 0) ? widths : null;
+}
+
 function buildBaseSnapshot(
-	config: { getOrder(): string[]; getDisplayName(p: string): string },
+	config: { get(k: string): unknown; getOrder(): string[]; getDisplayName(p: string): string },
 	data: { data: BaseEntry[]; groupedData: { key?: BaseValue; entries: BaseEntry[]; hasKey(): boolean }[] },
 	origType: string,
 	ctx: unknown
@@ -452,20 +464,23 @@ function buildBaseSnapshot(
 	root.createDiv({ cls: 'cmds-base-count', text: `${data.data.length} ${data.data.length === 1 ? 'result' : 'results'}` });
 
 	let budget = MAX_BASE_ROWS;
-	for (const group of data.groupedData) {
-		if (budget <= 0) break;
-		const section = root.createDiv({ cls: 'cmds-base-group' });
-		if (group.hasKey()) {
-			const head = section.createDiv({ cls: 'cmds-base-group-head' });
-			const label = head.createSpan({ cls: 'cmds-base-group-label' });
-			renderValue(label, group.key ?? null, ctx);
-			if (!label.textContent?.trim()) { label.setText('(empty)'); label.addClass('is-empty'); }
-			head.createSpan({ cls: 'cmds-base-group-count', text: String(group.entries.length) });
-		}
-		const entries = group.entries.slice(0, budget);
-		budget -= entries.length;
+	const groupLabel = (group: { key?: BaseValue; hasKey(): boolean }, into: HTMLElement): void => {
+		const label = into.createSpan({ cls: 'cmds-base-group-label' });
+		renderValue(label, group.key ?? null, ctx);
+		if (!label.textContent?.trim()) { label.setText('(empty)'); label.addClass('is-empty'); }
+	};
 
-		if (origType === 'cards') {
+	if (origType === 'cards') {
+		for (const group of data.groupedData) {
+			if (budget <= 0) break;
+			const section = root.createDiv({ cls: 'cmds-base-group' });
+			if (group.hasKey()) {
+				const head = section.createDiv({ cls: 'cmds-base-group-head' });
+				groupLabel(group, head);
+				head.createSpan({ cls: 'cmds-base-group-count', text: String(group.entries.length) });
+			}
+			const entries = group.entries.slice(0, budget);
+			budget -= entries.length;
 			const grid = section.createDiv({ cls: 'cmds-base-cards' });
 			for (const entry of entries) {
 				const card = grid.createDiv({ cls: 'cmds-base-card' });
@@ -479,12 +494,29 @@ function buildBaseSnapshot(
 					renderValue(row.createSpan({ cls: 'cmds-base-card-val' }), value, ctx);
 				});
 			}
-		} else {
-			const scroller = section.createDiv({ cls: 'cmds-base-scroll' });
-			const table = scroller.createEl('table', { cls: 'cmds-base-table' });
-			const hr = table.createTHead().insertRow();
-			columns.forEach(col => hr.createEl('th', { text: config.getDisplayName(col) }));
+		}
+	} else {
+		// one table for every group (like Obsidian), so columns line up across groups
+		const scroller = root.createDiv({ cls: 'cmds-base-scroll' });
+		const table = scroller.createEl('table', { cls: 'cmds-base-table' });
+		const sizes = columnSizes(config, columns);
+		if (sizes) table.setAttribute('data-sizes', JSON.stringify(sizes));
+		const hr = table.createTHead().insertRow();
+		columns.forEach(col => hr.createEl('th', { text: config.getDisplayName(col) }));
+		for (const group of data.groupedData) {
+			if (budget <= 0) break;
 			const tbody = table.createTBody();
+			if (group.hasKey()) {
+				tbody.addClass('cmds-base-group');
+				const cell = tbody.insertRow().createEl('td', { cls: 'cmds-base-group-cell' });
+				cell.setAttribute('colspan', String(columns.length));
+				const head = cell.createDiv({ cls: 'cmds-base-group-head' });
+				groupLabel(group, head);
+				head.createSpan({ cls: 'cmds-base-group-count', text: String(group.entries.length) });
+				cell.parentElement?.addClass('cmds-base-group-row');
+			}
+			const entries = group.entries.slice(0, budget);
+			budget -= entries.length;
 			for (const entry of entries) {
 				const tr = tbody.insertRow();
 				columns.forEach(col => renderValue(tr.insertCell(), entry.getValue(col), ctx));
@@ -497,10 +529,22 @@ function buildBaseSnapshot(
 	return root;
 }
 
+/** View names of a .base file, in file order (for the share dialog's view picker). */
+export async function listBaseViews(app: App, file: TFile): Promise<string[]> {
+	try {
+		const config = (parseYaml(await app.vault.read(file) || '{}') || {}) as { views?: { name?: unknown; type?: unknown }[] };
+		const views = Array.isArray(config.views) ? config.views : [];
+		return views.map((v, i) => String(v?.name || v?.type || `View ${i + 1}`));
+	} catch {
+		return [];
+	}
+}
+
 export async function renderBase(
 	app: App,
 	file: TFile,
-	component: Component
+	component: Component,
+	viewIndexes?: number[]
 ): Promise<{ el: HTMLElement; description: string }> {
 	const api = obsidian as unknown as { BasesView?: unknown };
 	if (typeof api.BasesView !== 'function') {
@@ -509,9 +553,13 @@ export async function renderBase(
 
 	const raw = await app.vault.read(file);
 	const config = (parseYaml(raw || '{}') || {}) as Record<string, unknown> & { views?: Record<string, unknown>[] };
-	const views = Array.isArray(config.views) && config.views.length
+	const allViews = Array.isArray(config.views) && config.views.length
 		? config.views
 		: [{ type: 'table', name: 'Table' }];
+	const picked = viewIndexes?.length
+		? allViews.filter((_, i) => viewIndexes.includes(i))
+		: allViews;
+	const views = picked.length ? picked : allViews;
 
 	const out = createDiv({ cls: 'cmds-base' });
 	// Bases lays views out only when attached — render off-screen, then detach

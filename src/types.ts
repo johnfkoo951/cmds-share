@@ -72,6 +72,8 @@ export interface SharedNote {
 	expiresAt?: number;
 	viewCount?: number;
 	revoked?: boolean;
+	/** Bases: view indexes published last time (all when missing). */
+	baseViews?: number[];
 }
 
 export interface ShareResult {

@@ -10,6 +10,14 @@ export interface ShareOptionsResponse {
 	action: 'share' | 'cancel';
 	encrypted: boolean;
 	expiration: string;
+	/** Bases: indexes of the views to publish. */
+	baseViews?: number[];
+}
+
+/** A base's views, offered as checkboxes so private views stay out of a share. */
+export interface BaseViewChoice {
+	names: string[];
+	selected: number[];
 }
 
 export class ShareOptionsModal extends Modal {
@@ -17,9 +25,14 @@ export class ShareOptionsModal extends Modal {
 	private response: Partial<ShareOptionsResponse> = {};
 	private resolvePromise?: (value: ShareOptionsResponse) => void;
 
-	constructor(app: App, settings: CMDSShareSettings) {
+	private baseViews?: BaseViewChoice;
+	private shareBtn?: HTMLButtonElement;
+
+	constructor(app: App, settings: CMDSShareSettings, baseViews?: BaseViewChoice) {
 		super(app);
 		this.settings = settings;
+		this.baseViews = baseViews;
+		if (baseViews) this.response.baseViews = [...baseViews.selected];
 		this.response.encrypted = settings.encryptionMode === 'always';
 		this.response.expiration = settings.defaultExpiration;
 	}
@@ -63,6 +76,26 @@ export class ShareOptionsModal extends Modal {
 					this.response.expiration = value;
 				}));
 
+		if (this.baseViews && this.baseViews.names.length > 1) {
+			new Setting(contentEl)
+				.setName('Views to publish')
+				.setDesc('Every row a published view matches becomes public. Leave out views meant for you only.')
+				.setHeading();
+			this.baseViews.names.forEach((name, i) => {
+				new Setting(contentEl)
+					.setName(name)
+					.setClass('cmds-share-view-pick')
+					.addToggle(toggle => toggle
+						.setValue(this.response.baseViews?.includes(i) ?? true)
+						.onChange(value => {
+							const set = new Set(this.response.baseViews ?? []);
+							if (value) set.add(i); else set.delete(i);
+							this.response.baseViews = [...set].sort((a, b) => a - b);
+							if (this.shareBtn) this.shareBtn.disabled = set.size === 0;
+						}));
+			});
+		}
+
 		const buttonContainer = contentEl.createDiv({ cls: 'cmds-share-buttons' });
 
 		buttonContainer.createEl('button', { text: 'Cancel' })
@@ -72,6 +105,7 @@ export class ShareOptionsModal extends Modal {
 			});
 
 		const shareBtn = buttonContainer.createEl('button', { text: 'Share', cls: 'mod-cta' });
+		this.shareBtn = shareBtn;
 		shareBtn.addEventListener('click', () => {
 			this.response.action = 'share';
 			this.close();
@@ -84,6 +118,7 @@ export class ShareOptionsModal extends Modal {
 				action: this.response.action ?? 'cancel',
 				encrypted: this.response.encrypted ?? false,
 				expiration: this.response.expiration ?? '',
+				baseViews: this.response.baseViews,
 			});
 		}
 	}

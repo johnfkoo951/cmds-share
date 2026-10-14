@@ -32,6 +32,8 @@ const CALLOUT_ICONS: Record<string, string> = {
 export interface ShareOptions {
 	encrypted?: boolean;
 	expiresAt?: number;
+	/** Bases only: indexes of the views to publish (all when omitted). */
+	baseViews?: number[];
 }
 
 export class ShareApiService {
@@ -108,7 +110,7 @@ export class ShareApiService {
 			const shouldEncrypt = options.encrypted ?? this.shouldEncrypt(file, app);
 
 			const kind = detectShareKind(file, app) ?? 'note';
-			const rendered = await this.renderByKind(kind, file, content, app);
+			const rendered = await this.renderByKind(kind, file, content, app, options.baseViews);
 			let htmlContent = rendered.html;
 
 			// Assets are uploaded before encryption so encrypted notes keep working
@@ -171,6 +173,7 @@ export class ShareApiService {
 				encrypted: shouldEncrypt,
 				expiresAt: options.expiresAt,
 				vaultId: this.settings.vaultId,
+				kind,
 			};
 
 			const result = await this.provider.upload(html, filename, 'text/html', meta);
@@ -204,7 +207,8 @@ export class ShareApiService {
 		kind: ShareKind,
 		file: TFile,
 		content: string,
-		app: App
+		app: App,
+		baseViews?: number[]
 	): Promise<{ html: string; description?: string }> {
 		if (kind === 'note') {
 			const extracted = await this.extractRenderedContent(app, file);
@@ -224,7 +228,7 @@ export class ShareApiService {
 		try {
 			const { el, description } = kind === 'canvas'
 				? await renderCanvas(app, file, component)
-				: await renderBase(app, file, component);
+				: await renderBase(app, file, component, baseViews);
 			this.cleanupRenderedDom(el);
 			el.querySelectorAll('[data-callout]').forEach(node => {
 				const calloutType = node.getAttribute('data-callout');

@@ -333,3 +333,8 @@
 .cmds-share-link-actions .mod-warning:hover { color: var(--text-error); }
 .cmds-share-link-actions .mod-restore { color: var(--color-green); }
 .cmds-share-owned-link .metadata-property-value { display: flex; align-items: center; }
+
+/* ═══ View-header share button ═══ */
+.cmds-share-view-action { color: var(--color-accent); }
+.cmds-share-view-action.is-revoked { color: var(--text-faint); }
+.cmds-share-notice-link { word-break: break-all; color: var(--text-accent); }

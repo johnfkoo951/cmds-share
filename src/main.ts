@@ -13,10 +13,10 @@ import { ShareApiService } from './api';
 import { RemoteNoteMeta } from './providers';
 import { CMDSShareSettingTab } from './settings';
 import { CMSView } from './cms';
-import { ShareOptionsModal, ConfirmDeleteModal, SharedNotesModal } from './modals';
+import { ShareOptionsModal, ConfirmDeleteModal, SharedNotesModal, BaseViewChoice } from './modals';
 import { generateShortId, sha256 } from './crypto';
-import { detectShareKind, displayBasename, registerBaseSnapshotView } from './renderers';
-import { refreshLinkFieldActions, registerLinkFieldActions } from './property-actions';
+import { detectShareKind, displayBasename, listBaseViews, registerBaseSnapshotView } from './renderers';
+import { refreshLinkFieldActions, registerLinkFieldActions, registerViewShareActions } from './property-actions';
 import { ThemeSnapshotStore } from './theme-snapshot';
 
 interface SavedData {
@@ -110,6 +110,18 @@ export default class CMDSSharePlugin extends Plugin {
 			this.app.metadataCache.on('changed', (file) => { void this.onShareFieldChanged(file); })
 		);
 		registerLinkFieldActions(this);
+		registerViewShareActions(this);
+
+		// shares are keyed by path — follow renames/moves so links stay attached
+		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+			const note = this.sharedNotes.get(oldPath);
+			if (!note || !(file instanceof TFile)) return;
+			this.sharedNotes.delete(oldPath);
+			note.filePath = file.path;
+			this.sharedNotes.set(file.path, note);
+			void this.saveSharedNotes();
+			refreshLinkFieldActions(this);
+		}));
 
 		this.addRibbonIcon('share-2', 'CMDS Share', () => {
 			const file = this.app.workspace.getActiveFile();
@@ -218,7 +230,15 @@ export default class CMDSSharePlugin extends Plugin {
 	}
 
 	async shareNote(file: TFile): Promise<void> {
-		const modal = new ShareOptionsModal(this.app, this.settings);
+		const existing = this.sharedNotes.get(file.path);
+		let baseViews: BaseViewChoice | undefined;
+		if (detectShareKind(file, this.app) === 'base') {
+			const names = await listBaseViews(this.app, file);
+			const all = names.map((_, i) => i);
+			const previous = existing?.baseViews?.filter(i => i < names.length);
+			baseViews = { names, selected: previous?.length ? previous : all };
+		}
+		const modal = new ShareOptionsModal(this.app, this.settings, baseViews);
 		modal.open();
 		const response = await modal.getResponse();
 
@@ -231,13 +251,13 @@ export default class CMDSSharePlugin extends Plugin {
 
 		new Notice(`Sharing: ${title}...`);
 
-		const existing = this.sharedNotes.get(file.path);
 		const reuseShortId = existing?.shortId;
 		const expiresAt = this.calculateExpiration(response.expiration);
 
 		const result = await this.api.shareNote(file, content, title, this.app, reuseShortId, {
 			encrypted: response.encrypted,
 			expiresAt,
+			baseViews: response.baseViews,
 		});
 
 		if (!result.success) {
@@ -261,19 +281,26 @@ export default class CMDSSharePlugin extends Plugin {
 			createdAt: existing?.createdAt ?? now,
 			updatedAt: now,
 			expiresAt,
+			baseViews: result.kind === 'base' ? response.baseViews : undefined,
 		};
 
 		this.sharedNotes.set(file.path, sharedNote);
 		await this.saveSharedNotes();
 
 		await this.updateFrontmatter(file, sharedNote);
+		refreshLinkFieldActions(this);
 
 		await navigator.clipboard.writeText(result.url || '');
 		// say when a share will die — silent expiry surprised us once already
 		const expiryNote = expiresAt ? ` · expires ${response.expiration}` : '';
 		// GitHub Pages rebuilds the site on every push — a fresh link 404s for ~1 min
 		const pagesNote = this.settings.activeProvider === 'github' ? ' · GitHub Pages is building, ~1 min' : '';
-		new Notice((existing ? 'Re-shared! URL copied' : 'Shared! URL copied') + expiryNote + pagesNote, pagesNote ? 6000 : undefined);
+		const shareUrl = result.url || '';
+		new Notice(createFragment(frag => {
+			frag.appendText((existing ? 'Re-shared! URL copied' : 'Shared! URL copied') + expiryNote + pagesNote);
+			frag.createEl('br');
+			frag.createEl('a', { text: shareUrl, href: shareUrl, cls: 'cmds-share-notice-link' });
+		}), 8000);
 		if (pagesNote) {
 			void this.api.waitForGitHubPages(now).then(live => {
 				new Notice(live ? `Live: ${title}` : `GitHub Pages build not confirmed for ${title} — check the repo's Pages settings`, 6000);
@@ -287,6 +314,7 @@ export default class CMDSSharePlugin extends Plugin {
 		if (success) {
 			this.sharedNotes.delete(note.filePath);
 			await this.saveSharedNotes();
+			refreshLinkFieldActions(this);
 
 			const file = this.app.vault.getAbstractFileByPath(note.filePath);
 			if (file instanceof TFile) {
@@ -526,6 +554,7 @@ export default class CMDSSharePlugin extends Plugin {
 	}
 
 	private async setShareField(file: TFile, value: boolean): Promise<void> {
+		if (!this.hasFrontmatter(file)) return;
 		const current = this.app.metadataCache.getFileCache(file)?.frontmatter?.[this.settings.shareField];
 		if (current === value) return;
 		await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
@@ -539,7 +568,13 @@ export default class CMDSSharePlugin extends Plugin {
 		}
 	}
 
+	/** Only markdown has frontmatter — .base is YAML, .canvas is JSON; writing either corrupts it. */
+	private hasFrontmatter(file: TFile): boolean {
+		return file.extension.toLowerCase() === 'md';
+	}
+
 	private async updateFrontmatter(file: TFile, note: SharedNote): Promise<void> {
+		if (!this.hasFrontmatter(file)) return;
 		await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
 			frontmatter[this.settings.shareField] = true;
 			frontmatter[this.settings.linkField] = note.url;
@@ -555,6 +590,7 @@ export default class CMDSSharePlugin extends Plugin {
 	}
 
 	private async removeFrontmatter(file: TFile): Promise<void> {
+		if (!this.hasFrontmatter(file)) return;
 		await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
 			delete frontmatter[this.settings.shareField];
 			delete frontmatter[this.settings.linkField];
