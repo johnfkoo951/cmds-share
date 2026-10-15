@@ -24,3 +24,6 @@ data.json
 .env.*.local
 CLAUDE.md
 convex/_generated/
+
+# Test artifacts
+.playwright-mcp/
