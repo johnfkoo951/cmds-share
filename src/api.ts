@@ -341,7 +341,9 @@ export class ShareApiService {
 		// absolute local paths: file:///… or Obsidian's app://<id>/… rewrite
 		const localMatch = src.match(/^file:\/\/(.*)$/) || src.match(/^app:\/\/[^/]+(\/.*)$/);
 		if (localMatch) {
-			let path = decodeURIComponent(localMatch[1]);
+			// Obsidian appends a cache-busting `?<mtime>` to app:// vault resources; a literal ?/# in a
+			// file name arrives percent-encoded, so cutting at the first raw ?/# only drops the query.
+			let path = decodeURIComponent(localMatch[1].replace(/[?#].*$/, ''));
 			if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1); // windows drive
 			const nodeRequire = (window as unknown as {
 				require?: (m: string) => { readFileSync(p: string): Uint8Array; existsSync(p: string): boolean; readdirSync(p: string): string[] };
