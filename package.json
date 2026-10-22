@@ -1,6 +1,6 @@
 {
 	"name": "cmds-share",
-	"version": "2.4.0",
+	"version": "2.5.0",
 	"description": "CMDS Share - Obsidian plugin for sharing notes to the web",
 	"main": "main.js",
 	"scripts": {
