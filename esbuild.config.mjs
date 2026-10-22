@@ -36,6 +36,8 @@ const context = await esbuild.context({
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
 	outfile: "main.js",
+	// vendor/cmds-pele (synced from the cmds-pele module) is inlined into share pages as text
+	loader: { ".txt": "text", ".css": "text" },
 });
 
 if (prod) {

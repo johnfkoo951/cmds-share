@@ -1,4 +1,5 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
+import { PELE_VERSION } from './pele';
 import type CMDSSharePlugin from './main';
 import {
 	ServerProviderType,
@@ -161,6 +162,18 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.shareColorMode || 'auto')
 				.onChange(async (value) => {
 					this.plugin.settings.shareColorMode = value as CMDSShareSettings['shareColorMode'];
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Diagram renderer')
+			.setDesc(`How Mermaid blocks are drawn on shared pages. Pele (${PELE_VERSION}, pinned) draws SVG that follows the page palette in light and dark mode and falls back to Mermaid for any diagram it cannot draw. Mermaid loads the latest Mermaid release.`)
+			.addDropdown(dropdown => dropdown
+				.addOption('pele', 'Pele (recommended)')
+				.addOption('mermaid', 'Mermaid')
+				.setValue(this.plugin.settings.diagramRenderer || 'pele')
+				.onChange(async (value) => {
+					this.plugin.settings.diagramRenderer = value as CMDSShareSettings['diagramRenderer'];
 					await this.plugin.saveSettings();
 				}));
 

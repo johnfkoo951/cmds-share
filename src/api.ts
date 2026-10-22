@@ -152,6 +152,8 @@ export class ShareApiService {
 				layout: kind === 'note' ? 'note' : 'wide',
 				...await this.resolveTheme(app),
 				colorMode: this.settings.shareColorMode,
+				diagramRenderer: this.settings.diagramRenderer,
+				hasDiagrams: shouldEncrypt || /data-mmd=/.test(htmlContent),
 				footerLink: this.footerLink(),
 				content: shouldEncrypt ? '' : htmlContent,
 				url: publicUrl,

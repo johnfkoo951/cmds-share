@@ -1,0 +1,166 @@
+/*! cmds-pele 0.2.0 · CMDS bootstrap for Pele 1.6.0 (MIT). Load pele.global.js first. */
+(function (global) {
+  'use strict';
+  var VERSION = '0.2.0';
+  // Mount options per surface. Links and images stay off everywhere: CMDS diagrams are documents, not apps.
+  var PROFILES = {
+    screen: { zoom: false, links: false, images: false },                        // web pages, blog, gallery
+    print: { zoom: false, links: false, images: false, autoDirection: false },   // A4 briefs, PDF reports
+    slide: { zoom: false, links: false, images: false, autoDirection: false }    // 16:9 decks
+  };
+  // Directives live in Mermaid comments, so Obsidian and any Mermaid renderer ignore them.
+  //   %% @key: A, B      emphasize nodes (accent stroke, tinted fill)
+  //   %% @interp: C      interpretation nodes (dashed accent stroke) and their outgoing edges
+  //   %% @aux: H         context nodes (muted)
+  //   %% @caption: ...   visible caption (used when mounting with figure:true or by hosts)
+  //   %% @alt: ...       accessible label for the diagram container
+  var DIRECTIVE = /^\s*%%\s*@(key|interp|aux|caption|alt)\s*:\s*(.*?)\s*$/;
+
+  function parseDirectives(src) {
+    var d = { key: [], interp: [], aux: [], caption: '', alt: '' };
+    String(src || '').split('\n').forEach(function (line) {
+      var m = line.match(DIRECTIVE);
+      if (!m) return;
+      if (m[1] === 'caption' || m[1] === 'alt') { d[m[1]] = m[2]; return; }
+      d[m[1]] = d[m[1]].concat(m[2].split(',').map(function (s) { return s.trim(); }).filter(Boolean));
+    });
+    return d;
+  }
+
+  function q(s) { return String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"'); }
+
+  // Record each edge's endpoints as data-from / data-to so hosts can reveal or style edges by node.
+  // Edge ids by type: flowchart L_<from>_<to>_<n>, class/er id_<from>_<to>_<n>, architecture/c4/wardley <from>-<to>,
+  // requirement <from>-<to>-<n>. Node ids may contain '_' or '-', so every split is tried against the real node ids.
+  function annotateEdges(svg) {
+    var nodes = {};
+    Array.prototype.forEach.call(svg.querySelectorAll('.pele-node[data-id]'), function (n) { nodes[n.getAttribute('data-id')] = 1; });
+    Array.prototype.forEach.call(svg.querySelectorAll('.pele-edge[data-id]'), function (e) {
+      if (e.hasAttribute('data-from')) return;
+      var id = e.getAttribute('data-id'), m = id.match(/^(?:L|id)_(.+)_\d+$/), i, a, b, parts;
+      if (m) {
+        parts = m[1].split('_');
+        for (i = 1; i < parts.length; i++) {
+          a = parts.slice(0, i).join('_'); b = parts.slice(i).join('_');
+          if (nodes[a] && nodes[b]) { e.setAttribute('data-from', a); e.setAttribute('data-to', b); return; }
+        }
+      }
+      parts = id.replace(/-\d+$/, '').split('-');
+      for (i = 1; i < parts.length; i++) {
+        a = parts.slice(0, i).join('-'); b = parts.slice(i).join('-');
+        if (nodes[a] && nodes[b]) { e.setAttribute('data-from', a); e.setAttribute('data-to', b); return; }
+      }
+      parts = id.split('-');
+      for (i = 1; i < parts.length; i++) {
+        a = parts.slice(0, i).join('-'); b = parts.slice(i).join('-');
+        if (nodes[a] && nodes[b]) { e.setAttribute('data-from', a); e.setAttribute('data-to', b); return; }
+      }
+    });
+  }
+
+  function mark(svg, ids, cls, withEdges) {
+    ids.forEach(function (id) {
+      svg.querySelectorAll('[data-id="' + q(id) + '"]').forEach(function (el) { el.classList.add(cls); });
+      if (withEdges) {
+        // Outgoing edges: by recorded endpoint first, then by id prefix for edges whose endpoints could not be resolved.
+        svg.querySelectorAll('.pele-edge[data-from="' + q(id) + '"], .pele-edge:not([data-from])[data-id^="L_' + q(id) + '_"], .pele-edge:not([data-from])[data-id^="id_' + q(id) + '_"], .pele-edge:not([data-from])[data-id^="' + q(id) + '-"]')
+          .forEach(function (el) { el.classList.add(cls); });
+      }
+    });
+  }
+
+  function applyDirectives(svg, d) {
+    if (!svg || !d) return;
+    annotateEdges(svg);
+    if (d.alt) { svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', d.alt); }
+    mark(svg, d.key, 'cmds-key', false);
+    mark(svg, d.interp, 'cmds-interp', true);
+    mark(svg, d.aux, 'cmds-aux', false);
+  }
+
+  function needPele() {
+    if (typeof global.pele === 'undefined') throw new Error('cmds-pele: load pele.global.js before cmds-pele.js');
+    return global.pele;
+  }
+
+  // Mount one diagram into a container element. opts: profile, theme ('light'|'dark'|'auto'), peleOptions, onRender, onError.
+  function mount(el, src, opts) {
+    opts = opts || {};
+    var pele = needPele();
+    var d = parseDirectives(src);
+    var o = Object.assign({}, PROFILES[opts.profile] || PROFILES.screen, opts.peleOptions || {});
+    el.classList.add('cmds-pele');
+    if (opts.theme) el.setAttribute('data-cp-theme', opts.theme);
+    if (d.alt) { el.setAttribute('role', 'img'); el.setAttribute('aria-label', d.alt); }
+    o.onRender = function (r) {
+      applyDirectives(el.querySelector('svg.pele'), d);
+      if (opts.onRender) opts.onRender(r, el, d);
+    };
+    o.onError = function (e) { if (opts.onError) opts.onError(e, el, d); };
+    el.__cmdsPele = pele.mount(el, src, o);
+    return el.__cmdsPele;
+  }
+
+  // Replace every Mermaid block under root with a mounted diagram.
+  // Finds pre.mermaid, pre > code.language-mermaid and [data-cmds-pele] (text content is the source).
+  function mountAll(root, opts) {
+    root = root || document;
+    opts = opts || {};
+    var sel = opts.selector || 'pre.mermaid, pre > code.language-mermaid, [data-cmds-pele]';
+    var mounted = [];
+    Array.prototype.slice.call(root.querySelectorAll(sel)).forEach(function (el) {
+      if (el.closest('.cmds-pele')) return;
+      var target = (el.tagName === 'CODE' && el.parentElement && el.parentElement.tagName === 'PRE') ? el.parentElement : el;
+      var src = el.textContent;
+      var d = parseDirectives(src);
+      var host = document.createElement('div');
+      var theme = opts.theme || target.getAttribute('data-cp-theme');
+      if (theme) host.setAttribute('data-cp-theme', theme);
+      if (opts.figure) {
+        var fig = document.createElement('figure');
+        fig.className = 'cmds-figure';
+        fig.appendChild(host);
+        if (d.caption) { var cap = document.createElement('figcaption'); cap.textContent = d.caption; fig.appendChild(cap); }
+        target.replaceWith(fig);
+      } else {
+        target.replaceWith(host);
+      }
+      mounted.push(mount(host, src, Object.assign({}, opts, { theme: theme })));
+    });
+    return mounted;
+  }
+
+  // Render without mounting and return the SVG markup with directives applied (for pre-rendering).
+  function renderToString(src, opts) {
+    opts = opts || {};
+    var pele = needPele();
+    var d = parseDirectives(src);
+    var o = Object.assign({}, opts.peleOptions || {});
+    if (opts.fontFamily) o.fontFamily = opts.fontFamily;
+    if (opts.fontFamilyMono) o.fontFamilyMono = opts.fontFamilyMono;
+    if (opts.maxWidth) o.maxWidth = opts.maxWidth;
+    if (opts.autoDirection === false) o.autoDirection = false;
+    if (opts.idPrefix) o.idPrefix = opts.idPrefix;
+    var r = pele.render(src, o);
+    var t = document.createElement('template');
+    t.innerHTML = r.svg.trim();
+    var svg = t.content.firstElementChild;
+    applyDirectives(svg, d);
+    return { svg: svg.outerHTML, width: r.width, height: r.height, type: r.type, directives: d };
+  }
+
+  global.cmdsPele = {
+    version: VERSION, peleVersion: '1.6.0', profiles: PROFILES,
+    parseDirectives: parseDirectives, applyDirectives: applyDirectives, annotateEdges: annotateEdges,
+    mount: mount, mountAll: mountAll, renderToString: renderToString
+  };
+
+  // <script src="cmds-pele.js" data-auto data-profile="screen" data-theme="auto" data-figure></script>
+  var me = global.document && document.currentScript;
+  if (me && me.hasAttribute('data-auto')) {
+    var run = function () {
+      mountAll(document, { profile: me.getAttribute('data-profile') || 'screen', theme: me.getAttribute('data-theme') || null, figure: me.hasAttribute('data-figure') });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+  }
+})(typeof window !== 'undefined' ? window : this);

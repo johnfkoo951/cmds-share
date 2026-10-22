@@ -63,7 +63,7 @@ Use the CMS to inspect, re-share, or delete entries. Governance-host revocation 
 |---|---|
 | Vault Identity | Vault display name and Vault ID identify the publishing vault; do not casually change identity to bypass a conflict |
 | Server Provider | Active provider chooses the destination for later operations |
-| Sharing | Share title source; Show title heading; Skip title heading when the note starts with an H1; Share page theme (CMDS palettes, My Obsidian theme — colors only / full look); Shared theme capture (full look); Light/dark mode; Footer link and label; Encryption mode; Default expiration |
+| Sharing | Share title source; Show title heading; Skip title heading when the note starts with an H1; Share page theme (CMDS palettes, My Obsidian theme — colors only / full look); Shared theme capture (full look); Light/dark mode; Diagram renderer (Pele / Mermaid); Footer link and label; Encryption mode; Default expiration |
 | Rendering | Remove backlinks; Remove frontmatter; Note width |
 | Frontmatter Fields | Share field, Link field, Encrypted field, Expires field control names used in your notes |
 | CMS Dashboard | Enable CMS dashboard; Auto refresh |
@@ -83,6 +83,9 @@ The page also carries Markdown copy/download tools. A graph may reveal link/tag 
 
 ### Title heading
 With **Show title heading** on (default), the share title — taken from **Share title source** — appears as a page heading, so the note body needs no `# Title` line. **Skip title heading when the note starts with an H1** (on by default) leaves it out when the first line after the frontmatter is already an H1; turn it off to show both.
+
+### Diagrams
+Mermaid blocks are drawn on the reader's side. With **Diagram renderer → Pele** (default), the page loads [Pele](https://github.com/obsidianmd/pele) from jsDelivr, pinned to one version and checked with Subresource Integrity. Pele's SVG takes its colors from the share palette, so a diagram follows light/dark switching without being redrawn. Comment directives from the cmds-pele theme work in the fence: `%% @key: A, B` emphasizes nodes, `%% @interp: C` marks interpretation nodes, `%% @aux: D` mutes context nodes, `%% @alt: …` sets the accessible label. Any diagram Pele cannot draw, or a page where Pele fails to load, falls back to Mermaid; if Mermaid also fails, the source is shown. **Mermaid** loads the latest Mermaid release for every diagram.
 
 ### Drawings, canvases, and bases
 The same share command works on Excalidraw drawings (`.excalidraw.md`), canvases (`.canvas`), and bases (`.base`):
