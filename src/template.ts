@@ -132,14 +132,21 @@ const NOTE_TYPOGRAPHY_CSS = `
 #note-content tr:last-child td { border-bottom: none; }
 #note-content hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 #note-content mark { background: rgba(233,133,162,0.25); padding: 0 0.2rem; border-radius: 3px; }
+/* callouts: tinted with their own color (no left accent bar). The title mixes the callout color with the
+   body text color, so it darkens on light palettes and lightens on dark ones (>= 4.8:1 on every palette). */
 #note-content .callout {
 	--co: var(--accent);
-	background: var(--code-bg); border-radius: 8px; padding: 0.9rem 1rem;
-	margin: 1rem 0; border-left: 3px solid var(--co);
+	background: var(--code-bg);
+	background: color-mix(in srgb, var(--co) var(--callout-tint, 10%), var(--bg));
+	border: 1px solid var(--border);
+	border: 1px solid color-mix(in srgb, var(--co) 24%, var(--bg));
+	border-radius: 10px; padding: 0.95rem 1.1rem; margin: 1.1rem 0;
 }
 #note-content .callout-title {
 	display: flex; align-items: center; gap: 0.5em;
-	font-weight: 700; color: var(--co); margin: 0;
+	font-weight: 700; margin: 0;
+	color: var(--co);
+	color: color-mix(in srgb, var(--co) 50%, var(--text));
 }
 #note-content .callout-icon { display: flex; align-items: center; flex-shrink: 0; }
 #note-content .callout-icon svg, #note-content .callout-title > svg {
@@ -155,14 +162,14 @@ const NOTE_TYPOGRAPHY_CSS = `
 #note-content .callout-fold svg { width: 1em; height: 1em; }
 #note-content .callout-content > :first-child { margin-top: 0.45rem; }
 #note-content .callout-content > :last-child { margin-bottom: 0.1rem; }
-#note-content .callout[data-callout="abstract"], #note-content .callout[data-callout="summary"], #note-content .callout[data-callout="tldr"] { --co: #23a8b8; }
-#note-content .callout[data-callout="info"], #note-content .callout[data-callout="note"], #note-content .callout[data-callout="todo"] { --co: #4a8edb; }
-#note-content .callout[data-callout="tip"], #note-content .callout[data-callout="hint"], #note-content .callout[data-callout="important"] { --co: #23b89b; }
-#note-content .callout[data-callout="success"], #note-content .callout[data-callout="check"], #note-content .callout[data-callout="done"] { --co: #3aa657; }
-#note-content .callout[data-callout="question"], #note-content .callout[data-callout="help"], #note-content .callout[data-callout="faq"] { --co: #d9a13b; }
-#note-content .callout[data-callout="warning"], #note-content .callout[data-callout="caution"], #note-content .callout[data-callout="attention"] { --co: #e0813a; }
-#note-content .callout[data-callout="danger"], #note-content .callout[data-callout="error"], #note-content .callout[data-callout="failure"], #note-content .callout[data-callout="fail"], #note-content .callout[data-callout="missing"], #note-content .callout[data-callout="bug"] { --co: #e05252; }
-#note-content .callout[data-callout="example"] { --co: #8a6fd6; }
+#note-content .callout[data-callout="abstract"], #note-content .callout[data-callout="summary"], #note-content .callout[data-callout="tldr"] { --co: #2a9aa8; }
+#note-content .callout[data-callout="info"], #note-content .callout[data-callout="note"], #note-content .callout[data-callout="todo"] { --co: var(--accent); }
+#note-content .callout[data-callout="tip"], #note-content .callout[data-callout="hint"], #note-content .callout[data-callout="important"] { --co: #2e9d7c; }
+#note-content .callout[data-callout="success"], #note-content .callout[data-callout="check"], #note-content .callout[data-callout="done"] { --co: #3c9a55; }
+#note-content .callout[data-callout="question"], #note-content .callout[data-callout="help"], #note-content .callout[data-callout="faq"] { --co: #c28a2c; }
+#note-content .callout[data-callout="warning"], #note-content .callout[data-callout="caution"], #note-content .callout[data-callout="attention"] { --co: #d0742e; }
+#note-content .callout[data-callout="danger"], #note-content .callout[data-callout="error"], #note-content .callout[data-callout="failure"], #note-content .callout[data-callout="fail"], #note-content .callout[data-callout="missing"], #note-content .callout[data-callout="bug"] { --co: #d24b4b; }
+#note-content .callout[data-callout="example"] { --co: #7d63cc; }
 #note-content .callout[data-callout="quote"], #note-content .callout[data-callout="cite"] { --co: var(--muted); }
 #note-content .internal-link {
 	color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: help;
@@ -355,13 +362,16 @@ ${urlMeta}
 :root {
 	--max: ${escapeAttr(noteWidth)};
 	${varsCss(palette.light)}
+	--callout-tint: 10%;
 }
 [data-theme="dark"] {
 	${varsCss(palette.dark)}
+	--callout-tint: 16%;
 }
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) {
 	${varsCss(palette.dark)}
+	--callout-tint: 16%;
 	}
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
