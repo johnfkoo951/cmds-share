@@ -1,7 +1,7 @@
-/*! cmds-pele 0.2.0 · CMDS bootstrap for Pele 1.6.0 (MIT). Load pele.global.js first. */
+/*! cmds-pele 0.3.0 · CMDS bootstrap for Pele 1.8.0 (MIT). Load pele.global.js first. */
 (function (global) {
   'use strict';
-  var VERSION = '0.2.0';
+  var VERSION = '0.3.0';
   // Mount options per surface. Links and images stay off everywhere: CMDS diagrams are documents, not apps.
   var PROFILES = {
     screen: { zoom: false, links: false, images: false },                        // web pages, blog, gallery
@@ -150,7 +150,7 @@
   }
 
   global.cmdsPele = {
-    version: VERSION, peleVersion: '1.6.0', profiles: PROFILES,
+    version: VERSION, peleVersion: '1.8.0', profiles: PROFILES,
     parseDirectives: parseDirectives, applyDirectives: applyDirectives, annotateEdges: annotateEdges,
     mount: mount, mountAll: mountAll, renderToString: renderToString
   };
