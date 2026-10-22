@@ -15,6 +15,7 @@ Obsidian 1.7.2+ | Desktop and mobile.
 - Use GitHub Pages by default or choose a compatible managed/self-hosted backend.
 - Offer readers a table of contents, theme switching and Markdown copy/download.
 - Share with your own Obsidian theme: **colors only**, or the **full look** — a frozen snapshot of your theme, snippets and Style Settings — and pin pages to light, dark, or the reader's choice.
+- Draw Mermaid diagrams with [Pele](https://github.com/obsidianmd/pele) (pinned, themeable SVG that follows light/dark without re-rendering), falling back to Mermaid for any diagram Pele cannot draw.
 - Control a share from the note itself: unchecking the share property takes the page down (re-check restores it on governance servers), and the link property gets re-share / copy / unshare buttons.
 - Use optional note encryption; governance-server features depend on the selected host.
 
@@ -44,3 +45,4 @@ Build the plugin assets for local development.
 
 ## Credits and license
 **Yohan Koo (CMDSPACE)**, https://cmdspace.work. **MIT**, [LICENSE](LICENSE).
+Diagrams on shared pages are drawn by [Pele](https://github.com/obsidianmd/pele) (MIT, Obsidian), loaded from jsDelivr at the version pinned in `vendor/cmds-pele/cmds-pele.version.json`.

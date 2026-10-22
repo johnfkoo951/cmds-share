@@ -1,4 +1,5 @@
 import { NoteTemplateData, ShareTheme, ThemePalette, ThemeVars } from './types';
+import { CMDS_PELE_CSS, CMDS_PELE_JS, PELE_SRI, PELE_URL } from './pele';
 
 const LOGO_URL = 'https://cmdspace.work/assets/logos/cmds-logo-round.png';
 const OG_IMAGE_URL = 'https://share.cmdspace.work/assets/og/og-share.png';
@@ -256,7 +257,18 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 		graph,
 		markdown,
 		expiresAt,
+		diagramRenderer = 'pele',
+		hasDiagrams = true,
 	} = data;
+	const renderer = diagramRenderer === 'mermaid' ? 'mermaid' : 'pele';
+	// cmds-pele bootstrap + theme (~13 KB) only on pages that may hold diagrams; colors follow the share palette
+	const peleHead = renderer === 'pele' && hasDiagrams
+		? `<style>${CMDS_PELE_CSS}
+.mermaid-container.cmds-pele { --cp-bg: var(--bg); --cp-fg: var(--text); --cp-muted: var(--muted); --cp-accent: var(--accent); --cp-surface: var(--code-bg); }
+</style>
+<script>${CMDS_PELE_JS}</script>
+`
+		: '';
 
 	const safeTitle = escapeHtml(title);
 	const safeDesc = escapeHtml((description || title).slice(0, 200));
@@ -510,6 +522,7 @@ ${nativeTheme ? '' : NOTE_TYPOGRAPHY_CSS}
 #note-content h3:hover .h-anchor, #note-content h4:hover .h-anchor { opacity: 0.75; }
 .mermaid-container { margin: 1rem 0; overflow-x: auto; text-align: center; }
 .mermaid-container svg { max-width: 100%; height: auto; }
+.mermaid-container pre { text-align: left; }
 
 /* ── title heading ── */
 .cmds-doc-header { margin: 0 0 2rem; }
@@ -801,9 +814,10 @@ ${graphDataDiv}
 ${mdSourceDiv}
 ${decryptionScript}
 
-<script type="module">
+${peleHead}<script type="module">
 (async function() {
-	// mermaid sources travel base64-encoded in data-mmd; render with the LATEST mermaid
+	// mermaid sources travel base64-encoded in data-mmd. Renderer (setting "Diagram renderer"):
+	// Pele, pinned + SRI, themeable SVG, with a per-diagram Mermaid fallback; or Mermaid only.
 	if (document.getElementById('encrypted-data') && !window.__cmdsReady) {
 		await new Promise(function(r) { document.addEventListener('cmds-content-ready', r, { once: true }); });
 	}
@@ -815,30 +829,80 @@ ${decryptionScript}
 		return new TextDecoder().decode(bytes);
 	}
 	var sources = containers.map(function(d) { return decode(d.getAttribute('data-mmd')); });
+	function showSource(el, src) {
+		var pre = document.createElement('pre');
+		pre.textContent = src;
+		el.innerHTML = '';
+		el.appendChild(pre);
+	}
+	var queue = [];   // indexes left for Mermaid
+	if (${JSON.stringify(renderer)} === 'pele' && window.cmdsPele) {
+		var loaded = true;
+		if (!window.pele) {
+			try {
+				await new Promise(function(res, rej) {
+					var s = document.createElement('script');
+					s.src = ${JSON.stringify(PELE_URL)};
+					s.integrity = ${JSON.stringify(PELE_SRI)};
+					s.crossOrigin = 'anonymous';
+					s.onload = res; s.onerror = rej;
+					document.head.appendChild(s);
+				});
+			} catch (e) { loaded = false; }
+		}
+		if (!loaded || !window.pele) {
+			queue = containers.map(function(_, i) { return i; });
+		} else {
+			await Promise.all(containers.map(function(el, i) {
+				return new Promise(function(done) {
+					var settled = false;
+					function finish(ok) {
+						if (settled) return;
+						settled = true;
+						if (!ok) {
+							try { if (el.__cmdsPele) el.__cmdsPele.destroy(); } catch (e) {}
+							el.classList.remove('cmds-pele');
+							['data-cp-theme', 'role', 'aria-label'].forEach(function(a) { el.removeAttribute(a); });
+							queue.push(i);
+						}
+						done();
+					}
+					try {
+						window.cmdsPele.mount(el, sources[i], {
+							profile: 'screen', theme: 'auto',
+							onRender: function() { finish(true); },
+							onError: function() { finish(false); }
+						});
+					} catch (e) { finish(false); }
+					setTimeout(function() { finish(!!el.querySelector('svg.pele')); }, 4000);
+				});
+			}));
+		}
+	} else {
+		queue = containers.map(function(_, i) { return i; });
+	}
+	if (!queue.length) return;
+	queue.sort(function(a, b) { return a - b; });
 	var mermaid;
 	try {
 		mermaid = (await import('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.esm.min.mjs')).default;
 	} catch (e) {
-		containers.forEach(function(d, i) {
-			var pre = document.createElement('pre');
-			pre.textContent = sources[i];
-			d.replaceWith(pre);
-		});
+		queue.forEach(function(i) { showSource(containers[i], sources[i]); });
 		return;
 	}
 	var seq = 0;
 	async function renderAll() {
 		var dark = document.documentElement.dataset.theme === 'dark';
-		mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'neutral', securityLevel: 'strict' });
-		for (var i = 0; i < containers.length; i++) {
+		mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'neutral', securityLevel: 'strict', suppressErrorRendering: true });
+		for (var k = 0; k < queue.length; k++) {
+			var i = queue[k], id = 'cmds-mmd-' + i + '-' + (seq++);
 			try {
-				var out = await mermaid.render('cmds-mmd-' + i + '-' + (seq++), sources[i]);
+				var out = await mermaid.render(id, sources[i]);
 				containers[i].innerHTML = out.svg;
 			} catch (e) {
-				var pre = document.createElement('pre');
-				pre.textContent = sources[i];
-				containers[i].innerHTML = '';
-				containers[i].appendChild(pre);
+				// a failed render can leave its scratch nodes (and an error drawing) at the end of <body>
+				['d' + id, id].forEach(function(x) { var n = document.getElementById(x); if (n) n.remove(); });
+				showSource(containers[i], sources[i]);
 			}
 		}
 	}

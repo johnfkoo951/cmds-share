@@ -9,6 +9,7 @@ export type ShareTheme = 'cmds' | 'mono' | 'sepia' | 'ocean' | 'obsidian' | 'obs
 
 /** How shared pages pick light/dark: the viewer's preference (with a toggle) or a fixed mode. */
 export type ShareColorMode = 'auto' | 'light' | 'dark';
+export type DiagramRenderer = 'pele' | 'mermaid';
 
 /** Where the share title comes from (missing sources fall back to the file name). */
 export type TitleSource = 'filename' | 'h1' | 'alias' | 'frontmatter';
@@ -160,6 +161,8 @@ export interface CMDSShareSettings {
 	encryptionMode: EncryptionMode;
 	shareTheme: ShareTheme;
 	shareColorMode: ShareColorMode;
+	/** Mermaid renderer on share pages: Pele (pinned, themeable SVG, Mermaid fallback) or Mermaid. */
+	diagramRenderer: DiagramRenderer;
 	themeSnapshot: ThemeSnapshot | null;
 	titleSource: TitleSource;
 	/** Render the share title as a heading above the body. */
@@ -196,6 +199,7 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	encryptionMode: 'auto',
 	shareTheme: 'cmds',
 	shareColorMode: 'auto',
+	diagramRenderer: 'pele',
 	themeSnapshot: null,
 	titleSource: 'filename',
 	showTitleHeading: true,
@@ -285,6 +289,9 @@ export interface NoteTemplateData {
 	palette: ThemePalette;
 	themeName: string;
 	colorMode?: ShareColorMode;
+	diagramRenderer?: DiagramRenderer;
+	/** Page has Mermaid blocks (always true for encrypted pages, so the page does not reveal it). */
+	hasDiagrams?: boolean;
 	/** Set when the page carries the full Obsidian theme CSS (cssUrl) instead of CMDS typography. */
 	nativeTheme?: { bodyClasses: string; bodyStyle: string };
 	footerLink?: { url: string; label: string };

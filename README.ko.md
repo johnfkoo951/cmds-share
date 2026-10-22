@@ -15,6 +15,7 @@ Obsidian 1.7.2 이상 | 데스크톱과 모바일.
 - 기본 GitHub Pages 또는 호환 관리형/자체 백엔드를 선택합니다.
 - 목차, 테마 전환, Markdown 복사/다운로드를 독자에게 제공합니다.
 - 내 Obsidian 테마 그대로 공유할 수 있습니다: **색상만** 또는 테마·스니펫·Style Settings를 고정 스냅샷으로 담는 **전체 모양**. 라이트/다크/독자 선택 모드도 고를 수 있습니다.
+- Mermaid 도식을 [Pele](https://github.com/obsidianmd/pele)로 그립니다(버전 고정, 라이트/다크를 다시 그리지 않고 따라가는 SVG). Pele가 그리지 못하는 도식은 Mermaid로 대신 그립니다.
 - 노트에서 바로 공유를 제어합니다: 공유 속성 체크를 해제하면 페이지를 내리고(거버넌스 서버에서는 다시 체크하면 복구), 링크 속성 옆에 재공유·복사·공유 해제 버튼이 붙습니다.
 - 노트 암호화를 선택할 수 있으며 거버넌스 기능은 선택한 호스트에 따라 다릅니다.
 
@@ -44,3 +45,4 @@ npm run build
 
 ## 제작자와 라이선스
 **Yohan Koo (CMDSPACE)**, https://cmdspace.work. **MIT**, [LICENSE](LICENSE).
+공유 페이지의 도식은 [Pele](https://github.com/obsidianmd/pele)(MIT, Obsidian)가 그리며, `vendor/cmds-pele/cmds-pele.version.json`에 고정한 버전을 jsDelivr에서 불러옵니다.

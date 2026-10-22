@@ -63,7 +63,7 @@ CMS에서 조회, 재공유, 삭제를 수행합니다. 거버넌스 서버의 �
 |---|---|
 | Vault Identity | Vault display name과 Vault ID는 발행 볼트를 식별; 충돌 우회 목적으로 임의 변경하지 않기 |
 | Server Provider | Active provider는 이후 작업의 목적지 |
-| Sharing | Share title source, Show title heading, Skip title heading when the note starts with an H1, Share page theme(CMDS 팔레트, My Obsidian theme — colors only / full look), 공유 테마 캡처(full look), Light/dark mode, Footer link와 label, Encryption mode, Default expiration |
+| Sharing | Share title source, Show title heading, Skip title heading when the note starts with an H1, Share page theme(CMDS 팔레트, My Obsidian theme — colors only / full look), 공유 테마 캡처(full look), Light/dark mode, Diagram renderer(Pele / Mermaid), Footer link와 label, Encryption mode, Default expiration |
 | 렌더링 | Remove backlinks, Remove frontmatter, Note width |
 | Frontmatter Fields | Share field, Link field, Encrypted field, Expires field는 노트에서 쓸 필드 이름 |
 | CMS Dashboard | Enable CMS dashboard, Auto refresh |
@@ -83,6 +83,9 @@ Eagle 자료는 외부에서 읽을 수 있는 클라우드 URL 또는 Share가 
 
 ### 제목 헤딩
 **Show title heading**(기본 켬)은 **Share title source**로 정한 제목을 페이지 상단 제목으로 표시합니다. 본문에 `# 제목`을 따로 쓸 필요가 없습니다. **Skip title heading when the note starts with an H1**(기본 켬)은 프론트매터 다음 첫 줄이 이미 H1이면 제목을 생략합니다. 끄면 둘 다 표시합니다.
+
+### 도식
+Mermaid 블록은 독자 브라우저에서 그립니다. **Diagram renderer → Pele**(기본값)이면 페이지가 [Pele](https://github.com/obsidianmd/pele)를 jsDelivr에서 한 버전으로 고정해 불러오고 Subresource Integrity로 확인합니다. Pele의 SVG는 공유 팔레트의 색을 쓰므로 라이트/다크를 바꿔도 다시 그리지 않고 따라갑니다. 펜스 안에 cmds-pele 지시문을 쓸 수 있습니다: `%% @key: A, B`는 강조, `%% @interp: C`는 해석 노드, `%% @aux: D`는 흐린 맥락 노드, `%% @alt: …`는 접근성 라벨. Pele가 그리지 못하는 도식이나 Pele를 불러오지 못한 페이지는 Mermaid로 대신 그리고, Mermaid도 실패하면 소스를 보여 줍니다. **Mermaid**를 고르면 모든 도식을 최신 Mermaid로 그립니다.
 
 ### 드로잉, 캔버스, Bases
 같은 공유 명령으로 Excalidraw 드로잉(`.excalidraw.md`), 캔버스(`.canvas`), Bases(`.base`)도 공유합니다.

@@ -1,0 +1,15 @@
+{
+ "module": "cmds-pele",
+ "version": "0.2.0",
+ "pele": "1.6.0",
+ "files": {
+  "pele.global.js": "b82d1bcd435302779a945e1e0f4a54ea56fb26e010ce3f2122f4216fcfc095d7",
+  "pele.js": "d1ebc1889f3069d7759fe5db34c4ad4b4823285edbee2b537d0ef3d505a76d8d",
+  "LICENSE-pele.txt": "311bccc30de6f7b9cbfb64232bb0c911ccb2191abe316550813ae25b2c7925b9",
+  "cmds-pele.js": "13cc6bf8566bb3c8d927e9cd011178e579e9649d08c4a0f5662f9c2aafbd4230",
+  "cmds-pele.css": "e374332ff4f3c05c194dbc1c3d0882ff0fbac29674b73122af8fc4648d6b509d",
+  "standalone/light.css": "3e93f557fece4af48db1b546cbbe41edae1ad6577f0ecaf81e03da1663870110",
+  "standalone/dark.css": "9892b975e34067866ad93bb8ad9e9d430f65785d642adfb5a9d62f252097a667",
+  "standalone/auto.css": "59ce9deb58dd1670b5a229511e3c66d23b2284a7d45dfa0e63a898f2c88ec490"
+ }
+}
