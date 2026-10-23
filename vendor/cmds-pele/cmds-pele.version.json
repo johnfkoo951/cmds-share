@@ -1,15 +1,18 @@
 {
  "module": "cmds-pele",
- "version": "0.3.0",
- "pele": "1.8.0",
+ "version": "0.4.0",
+ "pele": "1.9.0",
  "files": {
-  "pele.global.js": "9bf34b3a9a19351dc69d0d238e365560331a8ae392c41656df7f5090653253d0",
-  "pele.js": "30d94f823025c873abb2ec3676e34124e543583731e228ca957f51ddda415a05",
+  "pele.global.js": "323c16de7844d4b609743f70449ebce041a531e4f48f23b1e9e7ec9d3b917287",
+  "pele.js": "7c40a25eeaf4370fb56c03d9d8f6780051c9c39b6c6ca36d53239075117097f5",
   "LICENSE-pele.txt": "311bccc30de6f7b9cbfb64232bb0c911ccb2191abe316550813ae25b2c7925b9",
-  "cmds-pele.js": "2931927862157940cede35d71c1eea1ed34247a889bb914cc8897d9a316bf67f",
-  "cmds-pele.css": "8b52752029eb622b20744fa6c4c96d23217e92ce15a5105a160aeb641b69593e",
+  "cmds-pele.js": "eee9f215409fedb5b30461871a7ca009a73c4be94899ad144b05977ca7ddbc64",
+  "cmds-pele.css": "daecc53ba370dc88065bfcc68ba2f377e2c02d8800314c4a1dbc3738bed0010d",
   "standalone/light.css": "3e93f557fece4af48db1b546cbbe41edae1ad6577f0ecaf81e03da1663870110",
   "standalone/dark.css": "9892b975e34067866ad93bb8ad9e9d430f65785d642adfb5a9d62f252097a667",
-  "standalone/auto.css": "59ce9deb58dd1670b5a229511e3c66d23b2284a7d45dfa0e63a898f2c88ec490"
+  "standalone/auto.css": "59ce9deb58dd1670b5a229511e3c66d23b2284a7d45dfa0e63a898f2c88ec490",
+  "obsidian/main.js": "295ceb2a71a5aa29047ec631129a54fcafd676cac67ee9ad683bbd284ff80c0a",
+  "obsidian/styles.css": "2568b953bbad4296264a9758dda16c9ce8114a202806568a71b44ac6a8e375f7",
+  "obsidian/manifest.json": "0efdfeca93f6bac1644bd0d7cdc5a80cca6b0c89ee3b166e3d01eae143564c2b"
  }
 }
