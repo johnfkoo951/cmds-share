@@ -478,6 +478,14 @@ export class ShareApiService {
 		// interrupts a paragraph, or was mid-edit when rendered) → real <table>
 		rescueRawTables(root);
 
+		// YouTube embeds point at Obsidian's in-app player wrapper, which answers
+		// only the Obsidian client — browsers get a 404 and an empty frame. Swap in
+		// the embed URL Obsidian itself uses outside the app.
+		root.querySelectorAll('iframe[src^="https://releases.obsidian.md/youtube"]').forEach(frame => {
+			const src = webYouTubeEmbedUrl(frame.getAttribute('src') || '');
+			if (src) frame.setAttribute('src', src);
+		});
+
 		// callout icons paint asynchronously in Obsidian, so the cloned/rendered
 		// DOM often carries an EMPTY <svg> — refill from the bundled icon set
 		root.querySelectorAll('.callout').forEach(callout => {
@@ -718,6 +726,20 @@ export function startsWithH1(markdown: string): boolean {
 	const body = markdown.replace(/^---\n[\s\S]*?\n---\n?/, '');
 	const first = body.split('\n').find(line => line.trim().length > 0);
 	return !!first && /^#[ \t]+\S/.test(first.trim());
+}
+
+/**
+ * Obsidian's in-app YouTube wrapper (`releases.obsidian.md/youtube?v=<id>&start=<s>`)
+ * → the `youtube-nocookie.com` embed Obsidian uses outside the app. Null for other URLs.
+ */
+export function webYouTubeEmbedUrl(src: string): string | null {
+	let url: URL;
+	try { url = new URL(src); } catch { return null; }
+	if (url.hostname !== 'releases.obsidian.md' || url.pathname !== '/youtube') return null;
+	const id = url.searchParams.get('v');
+	if (!id || !/^[\w-]+$/.test(id)) return null;
+	const start = url.searchParams.get('start');
+	return `https://www.youtube-nocookie.com/embed/${id}` + (start && /^\d+$/.test(start) ? `?start=${start}` : '');
 }
 
 function base64ToBuffer(b64: string): ArrayBuffer {
