@@ -118,6 +118,11 @@ const NOTE_TYPOGRAPHY_CSS = `
 	border-radius: 0 8px 8px 0;
 }
 #note-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 1rem 0; }
+/* YouTube embeds fill the column at 16:9 (Obsidian's fixed 600×350 box letterboxes on phones) */
+#note-content iframe.external-embed[src*="youtube"] {
+	display: block; width: 100%; height: auto; aspect-ratio: 16 / 9;
+	border: 0; border-radius: 8px; margin: 1rem 0;
+}
 #note-content table {
 	border-collapse: collapse; margin: 1rem 0;
 	font-size: 0.9rem;

@@ -78,6 +78,7 @@ Remove frontmatter also strips leading YAML from the downloadable Markdown. It d
 
 ## Images, links, and page features
 The publisher uses Obsidian rendering to approximate the note's reading view. With **My Obsidian theme — full look**, the page also loads a snapshot of your theme CSS (app styles, community theme, enabled snippets, Style Settings), captured on first share or with **Capture current theme**. The snapshot is frozen: changing your Obsidian theme later does not restyle shares until you capture again and re-share, and earlier pages keep the CSS they were published with. The CSS file is public on the host even for encrypted notes. Pages offer a table of contents, heading links, code copying, light/dark mode, and graph/TOC display controls. Complex plugins, scripts, local-file references, and every custom theme are not guaranteed to work in a standalone browser.
+YouTube embeds (`![](https://youtu.be/…)`) play on the page. Obsidian's in-app player only answers the Obsidian app, so the page uses the `youtube-nocookie.com` player that Obsidian itself uses on the web.
 Before sharing Eagle material, prefer a readable cloud URL or a supported image that Share can upload. `file://` is machine-local and `eagle://` navigates into a desktop app; neither is a public image host. Test from a device without your local library.
 The page also carries Markdown copy/download tools. A graph may reveal link/tag names; encrypted shares omit that graph metadata. Always review source and rendered output, not just the visible first screen.
 
