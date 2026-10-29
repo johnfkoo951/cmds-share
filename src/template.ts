@@ -266,12 +266,15 @@ export function generateNoteHtml(data: NoteTemplateData): string {
 		hasDiagrams = true,
 	} = data;
 	const renderer = diagramRenderer === 'mermaid' ? 'mermaid' : 'pele';
-	// cmds-pele bootstrap + theme (~13 KB) only on pages that may hold diagrams; colors follow the share palette
+	// cmds-pele bootstrap + theme (~13 KB) only on pages that may hold diagrams; colors follow the share palette.
+	// Pele itself is a static deferred tag (not injected at runtime): it runs before the module script below,
+	// and if it fails to load or verify, window.pele stays undefined and that script falls back to Mermaid.
 	const peleHead = renderer === 'pele' && hasDiagrams
 		? `<style>${CMDS_PELE_CSS}
 .mermaid-container.cmds-pele { --cp-bg: var(--bg); --cp-fg: var(--text); --cp-muted: var(--muted); --cp-accent: var(--accent); --cp-surface: var(--code-bg); }
 </style>
 <script>${CMDS_PELE_JS}</script>
+<script src="${escapeAttr(PELE_URL)}" integrity="${escapeAttr(PELE_SRI)}" crossorigin="anonymous" defer></script>
 `
 		: '';
 
@@ -842,20 +845,7 @@ ${peleHead}<script type="module">
 	}
 	var queue = [];   // indexes left for Mermaid
 	if (${JSON.stringify(renderer)} === 'pele' && window.cmdsPele) {
-		var loaded = true;
 		if (!window.pele) {
-			try {
-				await new Promise(function(res, rej) {
-					var s = document.createElement('script');
-					s.src = ${JSON.stringify(PELE_URL)};
-					s.integrity = ${JSON.stringify(PELE_SRI)};
-					s.crossOrigin = 'anonymous';
-					s.onload = res; s.onerror = rej;
-					document.head.appendChild(s);
-				});
-			} catch (e) { loaded = false; }
-		}
-		if (!loaded || !window.pele) {
 			queue = containers.map(function(_, i) { return i; });
 		} else {
 			await Promise.all(containers.map(function(el, i) {
