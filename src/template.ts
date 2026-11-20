@@ -183,6 +183,72 @@ const NOTE_TYPOGRAPHY_CSS = `
 `;
 
 /**
+ * Note properties (frontmatter) block — a <details> at the top of the note.
+ * Used with every theme, so it is ID-scoped to win over a full Obsidian theme.
+ */
+const PROPERTIES_CSS = `
+#note-content .cmds-props {
+	margin: 0 0 2rem; border: 1px solid var(--border); border-radius: 10px;
+	font-size: 0.875rem; line-height: 1.5;
+}
+#note-content .cmds-props > summary {
+	display: flex; align-items: center; gap: 0.4rem;
+	padding: 0.5rem 0.8rem; cursor: pointer; list-style: none; user-select: none;
+	color: var(--muted); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;
+	border-radius: 9px; transition: color .15s;
+}
+#note-content .cmds-props > summary::-webkit-details-marker { display: none; }
+#note-content .cmds-props > summary:hover { color: var(--text); }
+#note-content .cmds-props > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#note-content .cmds-props-chevron {
+	width: 0.95rem; height: 0.95rem; flex-shrink: 0;
+	transform: rotate(-90deg); transition: transform .15s;
+}
+#note-content .cmds-props[open] > summary .cmds-props-chevron { transform: none; }
+#note-content .cmds-props-count {
+	min-width: 1.35rem; padding: 0 0.4rem; border-radius: 999px; text-align: center;
+	font-size: 0.7rem; font-weight: 600; background: var(--code-bg);
+}
+#note-content .cmds-props-list {
+	display: grid; grid-template-columns: fit-content(30%) minmax(0, 1fr); column-gap: 1.25rem;
+	margin: 0 0.8rem; padding: 0.15rem 0 0.45rem; border-top: 1px solid var(--border);
+}
+#note-content .cmds-prop { display: contents; }
+#note-content .cmds-prop-key, #note-content .cmds-prop-value { padding: 0.38rem 0; overflow-wrap: anywhere; }
+#note-content .cmds-prop + .cmds-prop > div {
+	border-top: 1px solid var(--border);
+	border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+#note-content .cmds-prop-key { min-width: 5.5rem; color: var(--muted); }
+#note-content .cmds-prop-value { min-width: 0; color: var(--text); }
+#note-content .cmds-prop-value code { font-size: 0.82em; }
+#note-content .cmds-prop-check {
+	display: inline-flex; align-items: center; justify-content: center; vertical-align: -0.16em;
+	width: 1.05em; height: 1.05em; border: 1.5px solid var(--muted); border-radius: 4px;
+}
+#note-content .cmds-prop-check.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+#note-content .cmds-prop-check svg { width: 0.78em; height: 0.78em; }
+#note-content .cmds-prop-pill {
+	display: inline-block; margin: 0.08rem 0.3rem 0.08rem 0; padding: 0.02rem 0.55rem;
+	border-radius: 999px; background: var(--code-bg); font-size: 0.8rem;
+}
+#note-content .cmds-prop-pill.is-tag {
+	color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+.cmds-doc-header:has(+ #note-content > .cmds-props:first-child) { margin-bottom: 1.25rem; }
+@media (max-width: 560px) {
+	#note-content .cmds-props-list { grid-template-columns: minmax(0, 1fr); }
+	#note-content .cmds-prop-key { padding-bottom: 0; font-size: 0.78rem; }
+	#note-content .cmds-prop-value { padding-top: 0.1rem; }
+	#note-content .cmds-prop + .cmds-prop > .cmds-prop-value { border-top: none; }
+}
+@media print {
+	#note-content .cmds-props > summary { display: none; }
+	#note-content .cmds-props:not([open]) { display: none; }
+}
+`;
+
+/**
  * With app.css + theme loaded, undo what makes sense in the app window but not
  * on a scrolling web page, and keep the page's own buttons out of Obsidian's
  * button styling.
@@ -505,6 +571,7 @@ main {
 }
 
 ${nativeTheme ? '' : NOTE_TYPOGRAPHY_CSS}
+${PROPERTIES_CSS}
 #note-content pre { position: relative; }
 .code-copy {
 	position: absolute; top: 8px; right: 8px;
@@ -1852,7 +1919,7 @@ const PANELS_SCRIPT = `
 </script>
 `;
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
 	return String(text)
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
@@ -1861,7 +1928,7 @@ function escapeHtml(text: string): string {
 		.replace(/'/g, '&#39;');
 }
 
-function escapeAttr(text: string): string {
+export function escapeAttr(text: string): string {
 	return String(text).replace(/"/g, '&quot;');
 }
 

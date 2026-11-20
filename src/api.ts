@@ -1,8 +1,9 @@
-import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags, setIcon, requestUrl } from 'obsidian';
+import { TFile, MarkdownView, App, Component, MarkdownRenderer, getAllTags, getFrontMatterInfo, parseYaml, setIcon, requestUrl } from 'obsidian';
 import { CMDSShareSettings, SharedNote, ShareResult, ShareKind, ServerProviderType, NoteGraphData, NoteTemplateData, ThemePalette } from './types';
 import { createServerProvider, ServerProvider, ShareMeta, RemoteNoteMeta, GitHubProvider, GitHubSetupResult } from './providers';
 import { encryptString, generateShortId, sha1 } from './crypto';
 import { generateNoteHtml, PALETTES } from './template';
+import { renderPropertiesBlock } from './properties';
 import { detectShareKind, renderBase, renderCanvas, renderExcalidraw } from './renderers';
 import { ThemeSnapshotStore, currentThemeName, extractObsidianPalette } from './theme-snapshot';
 
@@ -119,6 +120,14 @@ export class ShareApiService {
 			htmlContent = await this.uploadInlineAssets(htmlContent, file, app);
 			htmlContent = await this.externalizeDataFonts(htmlContent);
 
+			const description = rendered.description ?? this.extractDescription(content);
+			const lang = detectLang(shouldEncrypt || kind !== 'note' ? `${title} ${description}` : `${title} ${content.slice(0, 2000)}`);
+
+			// Part of the note HTML, so encrypted shares encrypt it along with the body.
+			if (kind === 'note') {
+				htmlContent = this.propertiesBlock(content, lang) + htmlContent;
+			}
+
 			// Raw markdown travels with the page so viewers can copy/download the
 			// source. Honors removeFrontmatter — frontmatter may hold private keys.
 			// Drawings/canvases/bases have no meaningful markdown source.
@@ -141,7 +150,6 @@ export class ShareApiService {
 				encryptionKey = encrypted.key;
 			}
 
-			const description = rendered.description ?? this.extractDescription(content);
 			const filename = `${shortId}.html`;
 			const publicUrl = this.provider.getPublicUrl(filename);
 
@@ -157,7 +165,7 @@ export class ShareApiService {
 				footerLink: this.footerLink(),
 				content: shouldEncrypt ? '' : htmlContent,
 				url: publicUrl,
-				lang: detectLang(shouldEncrypt || kind !== 'note' ? `${title} ${description}` : `${title} ${content.slice(0, 2000)}`),
+				lang,
 				noteWidth: this.settings.noteWidth,
 				encrypted: shouldEncrypt,
 				encryptedData: shouldEncrypt ? finalEncryptedData : undefined,
@@ -202,6 +210,25 @@ export class ShareApiService {
 				error: error instanceof Error ? error.message : 'Unknown error',
 			};
 		}
+	}
+
+	/** Foldable properties block for the top of a shared note ('' when hidden or nothing is left to show). */
+	private propertiesBlock(content: string, lang: 'ko' | 'en'): string {
+		const s = this.settings;
+		if (s.propertiesView === 'hidden') return '';
+		const info = getFrontMatterInfo(content);
+		if (!info.exists) return '';
+		let frontmatter: unknown;
+		try {
+			frontmatter = parseYaml(info.frontmatter);
+		} catch {
+			return ''; // malformed YAML: share the note without the block
+		}
+		return renderPropertiesBlock(frontmatter, {
+			view: s.propertiesView || 'collapsed',
+			hiddenKeys: [s.shareField, s.linkField, s.encryptedField, s.expiresField, ...(s.hiddenProperties || '').split(',')],
+			lang,
+		});
 	}
 
 	/** Body HTML (+ optional description) for each shareable file type. */

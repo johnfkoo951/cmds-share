@@ -132,6 +132,33 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName('Properties')
+			.setDesc('Show the note\'s properties (YAML frontmatter) under the title on shared pages. Readers can fold and unfold them; this sets how they start. Anyone with the link can read them.')
+			.addDropdown(dropdown => dropdown
+				.addOption('collapsed', 'Show, folded (default)')
+				.addOption('expanded', 'Show, unfolded')
+				.addOption('hidden', 'Hide')
+				.setValue(this.plugin.settings.propertiesView || 'collapsed')
+				.onChange(async (value) => {
+					this.plugin.settings.propertiesView = value as CMDSShareSettings['propertiesView'];
+					await this.plugin.saveSettings();
+					this.display();
+				}));
+
+		if (this.plugin.settings.propertiesView !== 'hidden') {
+			new Setting(containerEl)
+				.setName('Hidden properties')
+				.setDesc('Property names never shown on shared pages, separated by commas. CMDS Share\'s own fields, empty values, links into apps on your computer (obsidian://, file://…) and local file paths are always left out.')
+				.addText(text => text
+					.setPlaceholder('author, status')
+					.setValue(this.plugin.settings.hiddenProperties || '')
+					.onChange(async (value) => {
+						this.plugin.settings.hiddenProperties = value;
+						await this.plugin.saveSettings();
+					}));
+		}
+
+		new Setting(containerEl)
 			.setName('Share page theme')
 			.setDesc('How shared pages look. "Colors only" keeps CMDS typography in your theme\'s colors; "Full look" ships your Obsidian theme itself — fonts, headings, callouts, Style Settings options — so the page reads like your vault.')
 			.addDropdown(dropdown => dropdown
@@ -239,7 +266,7 @@ export class CMDSShareSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Remove frontmatter')
-			.setDesc('Remove YAML frontmatter from shared notes')
+			.setDesc('Leave the YAML frontmatter out of the markdown readers can copy or download. The properties block on the page is set under Sharing → Properties.')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.removeFrontmatter)
 				.onChange(async (value) => {

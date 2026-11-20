@@ -63,7 +63,7 @@ CMS에서 조회, 재공유, 삭제를 수행합니다. 거버넌스 서버의 �
 |---|---|
 | Vault Identity | Vault display name과 Vault ID는 발행 볼트를 식별; 충돌 우회 목적으로 임의 변경하지 않기 |
 | Server Provider | Active provider는 이후 작업의 목적지 |
-| Sharing | Share title source, Show title heading, Skip title heading when the note starts with an H1, Share page theme(CMDS 팔레트, My Obsidian theme — colors only / full look), 공유 테마 캡처(full look), Light/dark mode, Diagram renderer(Pele / Mermaid), Footer link와 label, Encryption mode, Default expiration |
+| Sharing | Share title source, Show title heading, Skip title heading when the note starts with an H1, Properties(접어서 표시 / 펼쳐서 표시 / 숨김), Hidden properties, Share page theme(CMDS 팔레트, My Obsidian theme — colors only / full look), 공유 테마 캡처(full look), Light/dark mode, Diagram renderer(Pele / Mermaid), Footer link와 label, Encryption mode, Default expiration |
 | 렌더링 | Remove backlinks, Remove frontmatter, Note width |
 | Frontmatter Fields | Share field, Link field, Encrypted field, Expires field는 노트에서 쓸 필드 이름 |
 | CMS Dashboard | Enable CMS dashboard, Auto refresh |
@@ -74,7 +74,7 @@ CMS에서 조회, 재공유, 삭제를 수행합니다. 거버넌스 서버의 �
 | Supabase | Enabled, Project URL, Anon key, Bucket, Table name |
 | Convex | Enabled, Deployment URL, Public URL |
 
-Remove frontmatter는 다운로드 Markdown의 앞쪽 YAML도 제거합니다. 본문, 주석 등 임의의 민감정보까지 지우지는 않으며 backlink 표시 제어도 완전한 원문 새니타이저는 아닙니다. 공개용 원본을 따로 준비하고 다운로드된 Markdown까지 확인합니다. 호스트 변경만으로 이전 공유물이 이관되거나 이전 URL이 철회되지는 않습니다.
+Remove frontmatter는 다운로드 Markdown의 앞쪽 YAML을 제거합니다. 페이지의 속성 블록은 **Properties**에서 따로 정합니다. 본문, 주석 등 임의의 민감정보까지 지우지는 않으며 backlink 표시 제어도 완전한 원문 새니타이저는 아닙니다. 공개용 원본을 따로 준비하고 다운로드된 Markdown까지 확인합니다. 호스트 변경만으로 이전 공유물이 이관되거나 이전 URL이 철회되지는 않습니다.
 
 ## 이미지, 링크, 페이지 기능
 Obsidian 렌더링으로 읽기 화면을 재현합니다. **My Obsidian theme — full look**을 고르면 내 테마 CSS(앱 기본 스타일, 커뮤니티 테마, 켜 둔 스니펫, Style Settings)의 스냅샷도 함께 실립니다. 스냅샷은 첫 공유 때 또는 **Capture current theme** 버튼으로 찍히며 고정됩니다. 이후 Obsidian 테마를 바꿔도 다시 캡처하고 재공유하기 전까지 공유 페이지는 그대로이고, 예전에 올린 페이지는 당시 CSS를 유지합니다. 암호화 노트여도 이 CSS 파일은 호스트에 공개됩니다. 목차, 제목 링크, 코드 복사, 라이트/다크 모드, 그래프/목차 표시 제어를 제공합니다. 복잡한 플러그인, 스크립트, 로컬 파일 참조, 모든 사용자 테마의 동작을 독립 브라우저에서 보장하지는 않습니다.
@@ -84,6 +84,9 @@ Eagle 자료는 외부에서 읽을 수 있는 클라우드 URL 또는 Share가 
 
 ### 제목 헤딩
 **Show title heading**(기본 켬)은 **Share title source**로 정한 제목을 페이지 상단 제목으로 표시합니다. 본문에 `# 제목`을 따로 쓸 필요가 없습니다. **Skip title heading when the note starts with an H1**(기본 켬)은 프론트매터 다음 첫 줄이 이미 H1이면 제목을 생략합니다. 끄면 둘 다 표시합니다.
+
+### 속성(Properties)
+공유된 노트는 제목 아래에 노트 속성(YAML 프론트매터)을 접었다 펼 수 있는 블록으로 보여 줍니다. **Properties**에서 처음 상태를 정합니다: **Show, folded**(접어서 표시, 기본), **Show, unfolded**(펼쳐서 표시), **Hide**(숨김). 태그는 태그 알약, 목록 값은 알약, `[[링크]]`는 링크 텍스트, 웹 URL은 링크, true/false는 체크 박스로 표시됩니다. 다음 값은 항상 빠집니다: CMDS Share 자체 필드(`cmds_share`, `cmds_share_link` 등), 빈 값, 내 컴퓨터의 앱으로 들어가는 링크(`obsidian://`, `file://`, 그 밖의 웹이 아닌 스킴), 로컬 절대 경로. 그 밖에 숨길 이름은 **Hidden properties**에 쉼표로 적습니다. 속성은 링크를 가진 누구나 읽을 수 있고, 암호화 공유에서는 본문과 함께 암호화됩니다. 드로잉·캔버스·Base에는 속성 블록이 없습니다.
 
 ### 도식
 Mermaid 블록은 독자 브라우저에서 그립니다. **Diagram renderer → Pele**(기본값)이면 페이지가 [Pele](https://github.com/obsidianmd/pele)를 jsDelivr에서 한 버전으로 고정해 불러오고 Subresource Integrity로 확인합니다. Pele의 SVG는 공유 팔레트의 색을 쓰므로 라이트/다크를 바꿔도 다시 그리지 않고 따라갑니다. 펜스 안에 cmds-pele 지시문을 쓸 수 있습니다: `%% @key: A, B`는 강조, `%% @interp: C`는 해석 노드, `%% @aux: D`는 흐린 맥락 노드, `%% @alt: …`는 접근성 라벨. Pele가 그리지 못하는 도식이나 Pele를 불러오지 못한 페이지는 Mermaid로 대신 그리고, Mermaid도 실패하면 소스를 보여 줍니다. **Mermaid**를 고르면 모든 도식을 최신 Mermaid로 그립니다.

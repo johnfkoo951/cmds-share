@@ -63,7 +63,7 @@ Use the CMS to inspect, re-share, or delete entries. Governance-host revocation 
 |---|---|
 | Vault Identity | Vault display name and Vault ID identify the publishing vault; do not casually change identity to bypass a conflict |
 | Server Provider | Active provider chooses the destination for later operations |
-| Sharing | Share title source; Show title heading; Skip title heading when the note starts with an H1; Share page theme (CMDS palettes, My Obsidian theme — colors only / full look); Shared theme capture (full look); Light/dark mode; Diagram renderer (Pele / Mermaid); Footer link and label; Encryption mode; Default expiration |
+| Sharing | Share title source; Show title heading; Skip title heading when the note starts with an H1; Properties (show folded / show unfolded / hide); Hidden properties; Share page theme (CMDS palettes, My Obsidian theme — colors only / full look); Shared theme capture (full look); Light/dark mode; Diagram renderer (Pele / Mermaid); Footer link and label; Encryption mode; Default expiration |
 | Rendering | Remove backlinks; Remove frontmatter; Note width |
 | Frontmatter Fields | Share field, Link field, Encrypted field, Expires field control names used in your notes |
 | CMS Dashboard | Enable CMS dashboard; Auto refresh |
@@ -74,7 +74,7 @@ Use the CMS to inspect, re-share, or delete entries. Governance-host revocation 
 | Supabase | Enabled, Project URL, Anon key, Bucket, Table name |
 | Convex | Enabled, Deployment URL, Public URL |
 
-Remove frontmatter also strips leading YAML from the downloadable Markdown. It does not scrub arbitrary sensitive prose, comments or other original source content; backlink display controls are not a complete source sanitizer. Publish a clean source note and inspect the downloadable Markdown. Switching providers does not migrate every old share or revoke the old host's URLs.
+Remove frontmatter strips leading YAML from the downloadable Markdown; the properties block on the page is controlled separately by **Properties**. It does not scrub arbitrary sensitive prose, comments or other original source content; backlink display controls are not a complete source sanitizer. Publish a clean source note and inspect the downloadable Markdown. Switching providers does not migrate every old share or revoke the old host's URLs.
 
 ## Images, links, and page features
 The publisher uses Obsidian rendering to approximate the note's reading view. With **My Obsidian theme — full look**, the page also loads a snapshot of your theme CSS (app styles, community theme, enabled snippets, Style Settings), captured on first share or with **Capture current theme**. The snapshot is frozen: changing your Obsidian theme later does not restyle shares until you capture again and re-share, and earlier pages keep the CSS they were published with. The CSS file is public on the host even for encrypted notes. Pages offer a table of contents, heading links, code copying, light/dark mode, and graph/TOC display controls. Complex plugins, scripts, local-file references, and every custom theme are not guaranteed to work in a standalone browser.
@@ -84,6 +84,9 @@ The page also carries Markdown copy/download tools. A graph may reveal link/tag 
 
 ### Title heading
 With **Show title heading** on (default), the share title — taken from **Share title source** — appears as a page heading, so the note body needs no `# Title` line. **Skip title heading when the note starts with an H1** (on by default) leaves it out when the first line after the frontmatter is already an H1; turn it off to show both.
+
+### Properties
+Shared notes show the note's properties (YAML frontmatter) under the title as a block readers can fold and unfold. **Properties** sets how it starts: **Show, folded** (default), **Show, unfolded**, or **Hide**. Tags appear as tag pills, list values as pills, `[[links]]` as their link text, web URLs as links and true/false as check boxes. Some values are always left out: CMDS Share's own fields (`cmds_share`, `cmds_share_link`, …), empty values, links into apps on your computer (`obsidian://`, `file://`, other non-web schemes) and absolute local paths. Add any other names to **Hidden properties** (comma-separated). Properties are visible to anyone with the link; on encrypted shares they are encrypted with the body. Drawings, canvases and Bases have no properties block.
 
 ### Diagrams
 Mermaid blocks are drawn on the reader's side. With **Diagram renderer → Pele** (default), the page loads [Pele](https://github.com/obsidianmd/pele) from jsDelivr, pinned to one version and checked with Subresource Integrity. Pele's SVG takes its colors from the share palette, so a diagram follows light/dark switching without being redrawn. Comment directives from the cmds-pele theme work in the fence: `%% @key: A, B` emphasizes nodes, `%% @interp: C` marks interpretation nodes, `%% @aux: D` mutes context nodes, `%% @alt: …` sets the accessible label. Any diagram Pele cannot draw, or a page where Pele fails to load, falls back to Mermaid; if Mermaid also fails, the source is shown. **Mermaid** loads the latest Mermaid release for every diagram.
