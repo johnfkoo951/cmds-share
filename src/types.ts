@@ -14,6 +14,9 @@ export type DiagramRenderer = 'pele' | 'mermaid';
 /** Where the share title comes from (missing sources fall back to the file name). */
 export type TitleSource = 'filename' | 'h1' | 'alias' | 'frontmatter';
 
+/** Note properties (YAML frontmatter) on share pages: a foldable block that starts folded or unfolded, or left out. */
+export type PropertiesView = 'collapsed' | 'expanded' | 'hidden';
+
 /** What kind of vault file a share was rendered from. */
 export type ShareKind = 'note' | 'excalidraw' | 'canvas' | 'base';
 
@@ -169,6 +172,10 @@ export interface CMDSShareSettings {
 	showTitleHeading: boolean;
 	/** ...unless the note body already opens with an H1 right after the frontmatter. */
 	skipTitleHeadingIfH1: boolean;
+	/** Properties block under the title on shared notes. */
+	propertiesView: PropertiesView;
+	/** Comma-separated property names never shown on share pages. */
+	hiddenProperties: string;
 	footerLinkUrl: string;
 	footerLinkLabel: string;
 	defaultExpiration: string;
@@ -204,6 +211,8 @@ export const DEFAULT_SETTINGS: CMDSShareSettings = {
 	titleSource: 'filename',
 	showTitleHeading: true,
 	skipTitleHeadingIfH1: true,
+	propertiesView: 'collapsed',
+	hiddenProperties: '',
 	footerLinkUrl: '',
 	footerLinkLabel: '',
 	defaultExpiration: '',
